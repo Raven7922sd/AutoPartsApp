@@ -9,9 +9,7 @@ plugins {
 
 android {
     namespace = "com.autoparts"
-    compileSdk {
-        version = release(36)
-    }
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.autoparts"
@@ -106,4 +104,11 @@ dependencies {
     // Íconos Material
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material:material-icons-extended")
+
+    // Coil para carga de imágenes
+    implementation("io.coil-kt:coil-compose:2.7.0")
+
+    // Glide para mejor soporte de Base64 data URLs
+    implementation("com.github.bumptech.glide:glide:4.16.0")
+    implementation("com.github.bumptech.glide:compose:1.0.0-beta01")
 }
