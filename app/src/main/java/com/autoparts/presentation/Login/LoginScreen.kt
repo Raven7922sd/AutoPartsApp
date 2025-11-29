@@ -24,7 +24,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.autoparts.presentation.navigation.Screen
-import com.example.tarea7.ui.theme.Tarea7Theme
+import com.autoparts.ui.theme.AutoPartsAppTheme
 import kotlinx.coroutines.flow.collectLatest
 
 @Composable
@@ -38,7 +38,7 @@ fun LoginScreen(
         viewModel.effects.collectLatest { effect ->
             when (effect) {
                 is Efecto.NavigateHome ->
-                    navController.navigate(Screen.Home.createRoute(effect.usuarioId))
+                    navController.navigate(Screen.Home.createRoute(effect.userId))
             }
         }
     }
@@ -140,9 +140,9 @@ fun LoginBody(
                     Spacer(modifier = Modifier.height(32.dp))
 
                     OutlinedTextField(
-                        value = state.userName,
-                        onValueChange = { onEvent(LoginUiEvent.userNameChanged(it)) },
-                        label = { Text("Nombre de usuario") },
+                        value = state.email,
+                        onValueChange = { onEvent(LoginUiEvent.emailChanged(it)) },
+                        label = { Text("Email") },
                         leadingIcon = {
                             Icon(
                                 imageVector = Icons.Default.Person,
@@ -152,9 +152,9 @@ fun LoginBody(
                         },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true,
-                        isError = state.userNameError != null,
+                        isError = state.emailError != null,
                         supportingText = {
-                            state.userNameError?.let { Text(text = it) }
+                            state.emailError?.let { Text(text = it) }
                         }
                     )
 
@@ -194,6 +194,22 @@ fun LoginBody(
                             state.passwordError?.let { Text(text = it) }
                         }
                     )
+
+                    if (state.isRegistering) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = state.phoneNumber,
+                            onValueChange = { onEvent(LoginUiEvent.phoneNumberChanged(it)) },
+                            label = { Text("Teléfono (opcional)") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            isError = state.phoneNumberError != null,
+                            supportingText = {
+                                state.phoneNumberError?.let { Text(text = it) }
+                            }
+                        )
+                    }
 
                     Spacer(modifier = Modifier.height(24.dp))
 
@@ -250,11 +266,11 @@ fun LoginBody(
 @Preview
 @Composable
 fun LoginBodyPreview(){
-    Tarea7Theme {
+    AutoPartsAppTheme() {
         LoginBody(
             state = LoginUiState(
-                userName = "José",
-                password = "Luisa",
+                email = "johan@gmail.com",
+                password = "Password123!",
                 isRegistering = false,
                 isLoading = false,
             ),
