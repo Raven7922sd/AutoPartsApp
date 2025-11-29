@@ -3,5 +3,5 @@ package com.autoparts.presentation.validation
 data class ValidationResult(
     val isValid: Boolean,
     val errorMessage: String? = null,
-    val usuarioId: Int? = null
+    val userId: String? = null
 )
