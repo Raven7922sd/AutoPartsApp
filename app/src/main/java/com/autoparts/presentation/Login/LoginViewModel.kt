@@ -4,8 +4,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.autoparts.Data.Remote.Resource
 import dagger.hilt.android.lifecycle.HiltViewModel
-import com.autoparts.dominio.model.Usuarios
-import com.autoparts.dominio.usecase.SaveUsuarioUseCase
+import com.autoparts.dominio.usecase.LoginUseCase
+import com.autoparts.dominio.usecase.RegisterUseCase
 import com.autoparts.presentation.validation.UsuarioValidator
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -18,8 +18,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class LoginViewModel @Inject constructor(
-    val saveUsuarioUseCase: SaveUsuarioUseCase,
-    val validator: UsuarioValidator,
+    private val loginUseCase: LoginUseCase,
+    private val registerUseCase: RegisterUseCase,
+    private val validator: UsuarioValidator,
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(LoginUiState())
@@ -30,8 +31,9 @@ class LoginViewModel @Inject constructor(
 
     fun onEvent(event: LoginUiEvent) {
         when (event) {
-            is LoginUiEvent.userNameChanged -> _state.update { it.copy(userName = event.userName) }
+            is LoginUiEvent.emailChanged -> _state.update { it.copy(email = event.email) }
             is LoginUiEvent.passwordChanged -> _state.update { it.copy(password = event.password) }
+            is LoginUiEvent.phoneNumberChanged -> _state.update { it.copy(phoneNumber = event.phoneNumber) }
             is LoginUiEvent.loginModeClicked -> _state.update { it.copy(isRegistering = false) }
             is LoginUiEvent.submitLogin -> onSubmitLogin()
             is LoginUiEvent.registerModeClicked -> onRegisterModeClicked()
@@ -40,91 +42,124 @@ class LoginViewModel @Inject constructor(
         }
     }
 
-    fun onSubmitLogin() {
+    private fun onSubmitLogin() {
         viewModelScope.launch {
-            if (_state.value.userName.isBlank() || _state.value.password.isBlank()) {
-                _state.update { it.copy(userMessage = "Debe completar todos los campos") }
-                return@launch
-            }
-            _state.update { it.copy(isLoading = true) }
-            val validar = validator.validateCredenciales(_state.value.userName, _state.value.password)
-            if (validar.isValid && validar.usuarioId != null) {
-                _state.update {
-                    it.copy(
-                        usuarioId = validar.usuarioId,
-                        isLoading = false,
-                        userMessage = "Validacion exitosa"
-                    )
-                }
-                _effects.emit(Efecto.NavigateHome(validar.usuarioId))
-            } else {
-                _state.update {
-                    it.copy(
-                        userMessage = "Error al validar las credenciales",
-                        isLoading = false
-                    )
-                }
-            }
-        }
-    }
-
-    fun onSubmitRegistration() {
-        viewModelScope.launch {
-            val nombreVal = validator.validateNombre(_state.value.userName)
+            val emailVal = validator.validateEmail(_state.value.email)
             val passVal = validator.validatePassword(_state.value.password)
 
             _state.update {
                 it.copy(
-                    userNameError = if (!nombreVal.isValid) nombreVal.errorMessage else null,
+                    emailError = if (!emailVal.isValid) emailVal.errorMessage else null,
                     passwordError = if (!passVal.isValid) passVal.errorMessage else null
                 )
             }
 
-            if (nombreVal.isValid && passVal.isValid) {
-                val usuario = Usuarios(_state.value.usuarioId, _state.value.userName, _state.value.password)
-                val id = _state.value.usuarioId ?: 0
-                when (val res = saveUsuarioUseCase(id, usuario)) {
-                    is Resource.Success -> _state.update {
-                        it.copy(
-                            userName = "",
-                            password = "",
-                            userNameError = null,
-                            passwordError = null,
-                            isRegistering = false,
-                            isLoading = false,
-                            userMessage = "Usuario registrado correctamente"
-                        )
+            if (!emailVal.isValid || !passVal.isValid) {
+                return@launch
+            }
+
+            _state.update { it.copy(isLoading = true) }
+
+            when (val result = loginUseCase(_state.value.email, _state.value.password)) {
+                is Resource.Success -> {
+                    val usuario = result.data
+                    if (usuario != null) {
+                        _state.update {
+                            it.copy(
+                                userId = usuario.id,
+                                isLoading = false,
+                                userMessage = "¡Bienvenido!"
+                            )
+                        }
+                        _effects.emit(Efecto.NavigateHome(usuario.id))
+                    } else {
+                        _state.update {
+                            it.copy(
+                                userMessage = "Error al iniciar sesión",
+                                isLoading = false
+                            )
+                        }
                     }
-                    is Resource.Error -> _state.update {
+                }
+                is Resource.Error -> {
+                    _state.update {
                         it.copy(
-                            userMessage = res.message ?: "Error al registrarse",
+                            userMessage = result.message ?: "Email o contraseña incorrectos",
                             isLoading = false
                         )
                     }
-                    else -> _state.update {
-                        it.copy(
-                            userMessage = "Error desconocido",
-                            isLoading = false
-                        )
-                    }
+                }
+                is Resource.Loading -> {
                 }
             }
         }
     }
 
-    fun onRegisterModeClicked() {
+    private fun onSubmitRegistration() {
         viewModelScope.launch {
+            val emailVal = validator.validateEmail(_state.value.email)
+            val passVal = validator.validatePassword(_state.value.password)
+            val phoneVal = validator.validatePhoneNumber(_state.value.phoneNumber.ifBlank { null })
+
             _state.update {
                 it.copy(
-                    userName = "",
-                    password = "",
-                    userNameError = null,
-                    passwordError = null,
-                    isRegistering = !it.isRegistering,
-                    isLoading = false,
-                    userMessage = ""
+                    emailError = if (!emailVal.isValid) emailVal.errorMessage else null,
+                    passwordError = if (!passVal.isValid) passVal.errorMessage else null,
+                    phoneNumberError = if (!phoneVal.isValid) phoneVal.errorMessage else null
                 )
             }
+
+            if (!emailVal.isValid || !passVal.isValid || !phoneVal.isValid) {
+                return@launch
+            }
+
+            _state.update { it.copy(isLoading = true) }
+
+            val phoneNumber = _state.value.phoneNumber.ifBlank { null }
+
+            when (val result = registerUseCase(_state.value.email, _state.value.password, phoneNumber)) {
+                is Resource.Success -> {
+                    _state.update {
+                        it.copy(
+                            email = "",
+                            password = "",
+                            phoneNumber = "",
+                            emailError = null,
+                            passwordError = null,
+                            phoneNumberError = null,
+                            isRegistering = false,
+                            isLoading = false,
+                            userMessage = "Usuario registrado correctamente. Por favor inicia sesión."
+                        )
+                    }
+                }
+                is Resource.Error -> {
+                    _state.update {
+                        it.copy(
+                            userMessage = result.message ?: "Error al registrar usuario",
+                            isLoading = false
+                        )
+                    }
+                }
+                is Resource.Loading -> {
+                }
+            }
+        }
+    }
+
+    private fun onRegisterModeClicked() {
+        _state.update {
+            it.copy(
+                email = "",
+                password = "",
+                phoneNumber = "",
+                emailError = null,
+                passwordError = null,
+                phoneNumberError = null,
+                isRegistering = !it.isRegistering,
+                isLoading = false,
+                userMessage = ""
+            )
         }
     }
 }
