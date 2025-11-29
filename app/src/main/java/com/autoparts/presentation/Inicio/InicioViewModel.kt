@@ -7,7 +7,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import com.autoparts.dominio.model.Usuarios
 import com.autoparts.dominio.usecase.GetUsuarioUseCase
 import com.autoparts.dominio.usecase.GetUsuariosUseCase
-import com.autoparts.dominio.usecase.SaveUsuarioUseCase
+import com.autoparts.dominio.usecase.UpdateUsuarioUseCase
+import com.autoparts.dominio.usecase.GetProductosUseCase
 import com.autoparts.presentation.validation.UsuarioValidator
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,7 +24,8 @@ import javax.inject.Inject
 class InicioViewModel @Inject constructor(
     private val getUsuarioUseCase: GetUsuarioUseCase,
     private val getUsuariosUseCase: GetUsuariosUseCase,
-    private val saveUsuarioUseCase: SaveUsuarioUseCase,
+    private val updateUsuarioUseCase: UpdateUsuarioUseCase,
+    private val getProductosUseCase: GetProductosUseCase,
     private val validator: UsuarioValidator
 ) : ViewModel() {
 
@@ -33,11 +35,17 @@ class InicioViewModel @Inject constructor(
     private val _effects = MutableSharedFlow<Efecto>()
     val effects: SharedFlow<Efecto> = _effects
 
+    init {
+        loadProductos()
+    }
+
     fun onEvent(event: InicioUiEvent) {
         when (event) {
-            is InicioUiEvent.LoadUser -> loadData(event.usuarioId)
-            is InicioUiEvent.UserNameChanged -> _state.update { it.copy(userName = event.userName) }
-            is InicioUiEvent.PasswordChanged -> _state.update { it.copy(password = event.password) }
+            is InicioUiEvent.LoadUser -> loadData(event.userId)
+            is InicioUiEvent.EmailChanged -> _state.update { it.copy(email = event.email) }
+            is InicioUiEvent.PhoneNumberChanged -> _state.update { it.copy(phoneNumber = event.phoneNumber) }
+            is InicioUiEvent.SearchQueryChanged -> _state.update { it.copy(searchQuery = event.query) }
+            is InicioUiEvent.LoadProductos -> loadProductos()
             is InicioUiEvent.Save -> onSave()
             is InicioUiEvent.Logout -> onLogout()
             is InicioUiEvent.UserMessageShown -> _state.update { it.copy(userMessage = null) }
@@ -46,17 +54,51 @@ class InicioViewModel @Inject constructor(
         }
     }
 
-    private fun loadData(id: Int) {
+    private fun loadProductos() {
         viewModelScope.launch {
-            _state.update { it.copy(isLoadingUser = true, isLoadingList = true, usuarioId = id) }
+            _state.update { it.copy(isLoadingProductos = true) }
+            try {
+                val productos = getProductosUseCase().first()
+                _state.update {
+                    it.copy(
+                        listProductos = productos,
+                        isLoadingProductos = false
+                    )
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        userMessage = "Error cargando productos: ${e.message}",
+                        isLoadingProductos = false
+                    )
+                }
+            }
+        }
+    }
+
+    private fun loadData(id: String) {
+        viewModelScope.launch {
+            _state.update { it.copy(isLoadingUser = true, isLoadingList = true, userId = id) }
 
             when (val userRes = getUsuarioUseCase(id)) {
-                is Resource.Success -> _state.update {
-                    it.copy(
-                        userName = userRes.data?.userName.orEmpty(),
-                        password = userRes.data?.password.orEmpty(),
-                        isLoadingUser = false
-                    )
+                is Resource.Success -> {
+                    val usuario = userRes.data
+                    if (usuario != null) {
+                        _state.update {
+                            it.copy(
+                                email = usuario.email,
+                                phoneNumber = usuario.phoneNumber.orEmpty(),
+                                isLoadingUser = false
+                            )
+                        }
+                    } else {
+                        _state.update {
+                            it.copy(
+                                userMessage = "Usuario no encontrado",
+                                isLoadingUser = false
+                            )
+                        }
+                    }
                 }
                 is Resource.Error -> _state.update {
                     it.copy(
@@ -64,12 +106,12 @@ class InicioViewModel @Inject constructor(
                         isLoadingUser = false
                     )
                 }
-                else -> _state.update { it.copy(isLoadingUser = false) }
+                is Resource.Loading -> _state.update { it.copy(isLoadingUser = true) }
             }
 
             try {
                 val lista = getUsuariosUseCase().first()
-                val others = lista.filter { u -> u.usuarioId != id }
+                val others = lista.filter { u -> u.id != id }
                 _state.update {
                     it.copy(
                         listUsuarios = others,
@@ -89,34 +131,34 @@ class InicioViewModel @Inject constructor(
 
     private fun onSave() {
         viewModelScope.launch {
-            val nombreVal = validator.validateNombre(_state.value.userName, _state.value.usuarioId)
-            val passVal = validator.validatePassword(_state.value.password)
+            val emailVal = validator.validateEmail(_state.value.email)
+            val phoneVal = validator.validatePhoneNumber(_state.value.phoneNumber.ifBlank { null })
 
             _state.update {
                 it.copy(
-                    userNameError = if (!nombreVal.isValid) nombreVal.errorMessage else null,
-                    passwordError = if (!passVal.isValid) passVal.errorMessage else null
+                    emailError = if (!emailVal.isValid) emailVal.errorMessage else null,
+                    phoneNumberError = if (!phoneVal.isValid) phoneVal.errorMessage else null
                 )
             }
 
-            if (nombreVal.isValid && passVal.isValid) {
-                val id = _state.value.usuarioId ?: return@launch
+            if (emailVal.isValid && phoneVal.isValid) {
+                val id = _state.value.userId ?: return@launch
                 _state.update { it.copy(isLoadingUser = true) }
 
-                val usuario = Usuarios(
-                    usuarioId = id,
-                    userName = _state.value.userName,
-                    password = _state.value.password
-                )
+                val phoneNumber = _state.value.phoneNumber.ifBlank { null }
 
-                when (val res = saveUsuarioUseCase(id, usuario)) {
+                when (val res = updateUsuarioUseCase(
+                    id = id,
+                    email = _state.value.email,
+                    phoneNumber = phoneNumber
+                )) {
                     is Resource.Success -> _state.update {
                         it.copy(
                             userMessage = "Usuario actualizado correctamente",
                             isLoadingUser = false,
                             showDialog = false,
-                            userNameError = null,
-                            passwordError = null
+                            emailError = null,
+                            phoneNumberError = null
                         )
                     }
                     is Resource.Error -> _state.update {
@@ -125,11 +167,8 @@ class InicioViewModel @Inject constructor(
                             isLoadingUser = false
                         )
                     }
-                    else -> _state.update {
-                        it.copy(
-                            userMessage = "Error desconocido",
-                            isLoadingUser = false
-                        )
+                    is Resource.Loading -> _state.update {
+                        it.copy(isLoadingUser = true)
                     }
                 }
             }
@@ -140,8 +179,8 @@ class InicioViewModel @Inject constructor(
         _state.update {
             it.copy(
                 showDialog = true,
-                userNameError = null,
-                passwordError = null
+                emailError = null,
+                phoneNumberError = null
             )
         }
     }
