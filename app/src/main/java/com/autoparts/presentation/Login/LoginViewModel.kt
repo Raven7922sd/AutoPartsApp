@@ -3,6 +3,7 @@ package com.autoparts.presentation.Login
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.autoparts.Data.Remote.Resource
+import com.autoparts.Data.local.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import com.autoparts.dominio.usecase.LoginUseCase
 import com.autoparts.dominio.usecase.RegisterUseCase
@@ -20,6 +21,7 @@ import javax.inject.Inject
 class LoginViewModel @Inject constructor(
     private val loginUseCase: LoginUseCase,
     private val registerUseCase: RegisterUseCase,
+    private val sessionManager: SessionManager,
     private val validator: UsuarioValidator,
 ) : ViewModel() {
 
@@ -62,16 +64,24 @@ class LoginViewModel @Inject constructor(
 
             when (val result = loginUseCase(_state.value.email, _state.value.password)) {
                 is Resource.Success -> {
-                    val usuario = result.data
-                    if (usuario != null) {
+                    val loginResult = result.data
+                    if (loginResult != null) {
+                        sessionManager.saveSession(
+                            userId = loginResult.email,
+                            email = loginResult.email,
+                            userName = loginResult.email.substringBefore("@"),
+                            jwtToken = loginResult.accessToken,
+                            refreshToken = loginResult.refreshToken
+                        )
+
                         _state.update {
                             it.copy(
-                                userId = usuario.id,
+                                userId = loginResult.email,
                                 isLoading = false,
                                 userMessage = "¡Bienvenido!"
                             )
                         }
-                        _effects.emit(Efecto.NavigateHome(usuario.id))
+                        _effects.emit(Efecto.NavigateHome(loginResult.email))
                     } else {
                         _state.update {
                             it.copy(
