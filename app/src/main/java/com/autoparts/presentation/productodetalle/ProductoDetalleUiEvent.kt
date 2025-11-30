@@ -10,5 +10,5 @@ interface ProductoDetalleUiEvent {
     data object Save : ProductoDetalleUiEvent
     data object ToggleEditMode : ProductoDetalleUiEvent
     data object UserMessageShown : ProductoDetalleUiEvent
+    data class AddToCarrito(val cantidad: Int) : ProductoDetalleUiEvent
 }
-
