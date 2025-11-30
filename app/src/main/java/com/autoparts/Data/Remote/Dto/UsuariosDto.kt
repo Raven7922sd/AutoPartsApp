@@ -26,6 +26,13 @@ data class LoginDto(
     val password: String
 )
 
+data class LoginResponse(
+    val tokenType: String,
+    val accessToken: String,
+    val expiresIn: Int,
+    val refreshToken: String
+)
+
 data class UpdateUserDto(
     val email: String?,
     val phoneNumber: String?,
@@ -33,7 +40,7 @@ data class UpdateUserDto(
     val newPassword: String?
 )
 
-@Deprecated("Usar UserDto en su lugar")
+@Deprecated("Usar UserDto")
 data class UsuariosDto(
     val usuarioId: Int?,
     val userName: String,
