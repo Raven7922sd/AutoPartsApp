@@ -84,5 +84,29 @@ class UsuarioValidator @Inject constructor() {
 
         return ValidationResult(isValid = true, errorMessage = "")
     }
-}
 
+    fun validateUserName(userName: String): ValidationResult {
+        if (userName.isBlank()) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "El nombre es requerido"
+            )
+        }
+
+        if (userName.length < 2) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "El nombre debe tener al menos 2 caracteres"
+            )
+        }
+
+        if (userName.length > 50) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "El nombre no puede tener más de 50 caracteres"
+            )
+        }
+
+        return ValidationResult(isValid = true, errorMessage = "")
+    }
+}
