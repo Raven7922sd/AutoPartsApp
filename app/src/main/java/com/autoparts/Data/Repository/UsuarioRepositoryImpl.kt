@@ -5,6 +5,7 @@ import com.autoparts.Data.Mappers.toDto
 import com.autoparts.Data.Remote.Resource
 import com.autoparts.Data.Remote.UsuarioRemoteDataSource
 import com.autoparts.dominio.model.CreateUser
+import com.autoparts.dominio.model.LoginResult
 import com.autoparts.dominio.model.LoginUser
 import com.autoparts.dominio.model.UpdateUser
 import com.autoparts.dominio.model.Usuarios
@@ -73,13 +74,13 @@ class UsuarioRepositoryImpl @Inject constructor(
         }
     }
 
-    override suspend fun login(loginUser: LoginUser): Resource<Usuarios> {
+    override suspend fun login(loginUser: LoginUser): Resource<LoginResult> {
         val result = dataSource.login(loginUser.toDto())
         return when (result) {
             is Resource.Success -> {
-                val usuario = result.data?.toDomain()
-                if (usuario != null) {
-                    Resource.Success(usuario)
+                val loginResponse = result.data
+                if (loginResponse != null) {
+                    Resource.Success(loginResponse.toDomain(loginUser.email))
                 } else {
                     Resource.Error("Error al iniciar sesión")
                 }
