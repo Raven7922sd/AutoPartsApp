@@ -15,10 +15,16 @@ data class CreateUser(
     val phoneNumber: String? = null
 )
 
-// Para login
 data class LoginUser(
     val email: String,
     val password: String
+)
+
+data class LoginResult(
+    val accessToken: String,
+    val refreshToken: String,
+    val expiresIn: Int,
+    val email: String
 )
 
 data class UpdateUser(
@@ -27,4 +33,3 @@ data class UpdateUser(
     val currentPassword: String? = null,
     val newPassword: String? = null
 )
-
