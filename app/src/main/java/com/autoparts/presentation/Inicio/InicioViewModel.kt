@@ -3,12 +3,16 @@ package com.autoparts.presentation.Inicio
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.autoparts.Data.Remote.Resource
+import com.autoparts.Data.local.CarritoLocalManager
+import com.autoparts.Data.local.SessionManager
 import dagger.hilt.android.lifecycle.HiltViewModel
-import com.autoparts.dominio.model.Usuarios
 import com.autoparts.dominio.usecase.GetUsuarioUseCase
+import com.autoparts.dominio.usecase.GetUsuarioByEmailUseCase
 import com.autoparts.dominio.usecase.GetUsuariosUseCase
 import com.autoparts.dominio.usecase.UpdateUsuarioUseCase
 import com.autoparts.dominio.usecase.GetProductosUseCase
+import com.autoparts.dominio.usecase.AddCarritoItemUseCase
+import com.autoparts.dominio.model.AddCarrito
 import com.autoparts.presentation.validation.UsuarioValidator
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -23,9 +27,13 @@ import javax.inject.Inject
 @HiltViewModel
 class InicioViewModel @Inject constructor(
     private val getUsuarioUseCase: GetUsuarioUseCase,
+    private val getUsuarioByEmailUseCase: GetUsuarioByEmailUseCase,
     private val getUsuariosUseCase: GetUsuariosUseCase,
     private val updateUsuarioUseCase: UpdateUsuarioUseCase,
     private val getProductosUseCase: GetProductosUseCase,
+    private val addCarritoItemUseCase: AddCarritoItemUseCase,
+    private val carritoLocalManager: CarritoLocalManager,
+    private val sessionManager: SessionManager,
     private val validator: UsuarioValidator
 ) : ViewModel() {
 
@@ -37,6 +45,20 @@ class InicioViewModel @Inject constructor(
 
     init {
         loadProductos()
+        observeSession()
+    }
+
+    private fun observeSession() {
+        viewModelScope.launch {
+            sessionManager.userIdFlow.collect { userId ->
+                if (userId != null) {
+                    _state.update { it.copy(userId = userId) }
+                    loadData(userId)
+                } else {
+                    _state.update { it.copy(userId = null, email = "", phoneNumber = "") }
+                }
+            }
+        }
     }
 
     fun onEvent(event: InicioUiEvent) {
@@ -45,6 +67,8 @@ class InicioViewModel @Inject constructor(
             is InicioUiEvent.EmailChanged -> _state.update { it.copy(email = event.email) }
             is InicioUiEvent.PhoneNumberChanged -> _state.update { it.copy(phoneNumber = event.phoneNumber) }
             is InicioUiEvent.SearchQueryChanged -> _state.update { it.copy(searchQuery = event.query) }
+            is InicioUiEvent.CategorySelected -> _state.update { it.copy(selectedCategory = event.category) }
+            is InicioUiEvent.AddToCarrito -> addToCarrito(event.productoId)
             is InicioUiEvent.LoadProductos -> loadProductos()
             is InicioUiEvent.Save -> onSave()
             is InicioUiEvent.Logout -> onLogout()
@@ -80,7 +104,14 @@ class InicioViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(isLoadingUser = true, isLoadingList = true, userId = id) }
 
-            when (val userRes = getUsuarioUseCase(id)) {
+            val isEmail = id.contains("@")
+            val userRes = if (isEmail) {
+                getUsuarioByEmailUseCase(id)
+            } else {
+                getUsuarioUseCase(id)
+            }
+
+            when (userRes) {
                 is Resource.Success -> {
                     val usuario = userRes.data
                     if (usuario != null) {
@@ -187,7 +218,53 @@ class InicioViewModel @Inject constructor(
 
     private fun onLogout() {
         viewModelScope.launch {
+            sessionManager.clearSession()
+            carritoLocalManager.clearCarrito()
+            _state.update {
+                it.copy(
+                    userId = null,
+                    email = "",
+                    phoneNumber = "",
+                    listUsuarios = emptyList()
+                )
+            }
             _effects.emit(Efecto.NavigateLogin)
+        }
+    }
+
+    private fun addToCarrito(productoId: Int) {
+        viewModelScope.launch {
+            val producto = _state.value.listProductos.find { it.productoId == productoId }
+            if (producto == null) {
+                _state.update {
+                    it.copy(userMessage = "Producto no encontrado")
+                }
+                return@launch
+            }
+
+            if (_state.value.userId != null) {
+                val addCarrito = AddCarrito(productoId = productoId, cantidad = 1)
+                when (val result = addCarritoItemUseCase(addCarrito)) {
+                    is Resource.Success -> {
+                        _state.update {
+                            it.copy(userMessage = "Producto agregado al carrito")
+                        }
+                    }
+                    is Resource.Error -> {
+                        carritoLocalManager.addItem(producto, 1)
+                        _state.update {
+                            it.copy(userMessage = "Producto agregado al carrito local")
+                        }
+                    }
+                    is Resource.Loading -> {
+                    }
+                }
+            } else {
+                carritoLocalManager.addItem(producto, 1)
+                _state.update {
+                    it.copy(userMessage = "Producto agregado al carrito")
+                }
+            }
         }
     }
 }
