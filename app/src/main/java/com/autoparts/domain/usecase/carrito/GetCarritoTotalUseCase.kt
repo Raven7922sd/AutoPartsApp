@@ -1,0 +1,14 @@
+package com.autoparts.domain.usecase.carrito
+
+import com.autoparts.data.remote.util.Resource
+import com.autoparts.domain.model.CarritoTotal
+import com.autoparts.domain.repository.CarritoRepository
+import javax.inject.Inject
+
+class GetCarritoTotalUseCase @Inject constructor(
+    private val repository: CarritoRepository
+) {
+    suspend operator fun invoke(): Resource<CarritoTotal> {
+        return repository.getCarritoTotal()
+    }
+}
