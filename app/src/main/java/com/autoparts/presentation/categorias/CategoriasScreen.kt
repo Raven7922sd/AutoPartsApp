@@ -20,26 +20,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
-import coil.compose.AsyncImage
-import com.autoparts.dominio.model.Producto
-import com.autoparts.presentation.Inicio.InicioViewModel
+import com.autoparts.domain.model.Producto
+import com.autoparts.presentation.inicio.InicioViewModel
 import com.autoparts.presentation.components.ProductImage
-import com.autoparts.presentation.navigation.Screen
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoriasScreen(
-    navController: NavController,
+    onNavigateToProductoDetalle: (Int) -> Unit,
+    onNavigateToHome: () -> Unit,
+    onNavigateToServicios: () -> Unit,
+    onNavigateToCarrito: () -> Unit,
+    onNavigateBack: () -> Unit,
     viewModel: InicioViewModel = hiltViewModel()
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    var selectedCategory by remember { mutableStateOf<String?>("Uso General") } // Iniciar con Uso General
-    var minPrice by remember { mutableIntStateOf(100) } // Precio mínimo inicial 100
+    val state by viewModel.state.collectAsState()
+    var selectedCategory by remember { mutableStateOf<String?>("Uso General") }
+    var minPrice by remember { mutableIntStateOf(0) }
     var maxPrice by remember { mutableIntStateOf(1000000) }
     var showFilterDialog by remember { mutableStateOf(false) }
+    var searchQuery by remember { mutableStateOf("") }
 
     val categorias = listOf(
         "Uso General",
@@ -55,7 +56,15 @@ fun CategoriasScreen(
 
         val matchesPrice = producto.productoMonto in minPrice..maxPrice
 
-        matchesCategory && matchesPrice
+        val matchesSearch = if (searchQuery.isBlank()) {
+            true
+        } else {
+            producto.productoNombre.contains(searchQuery, ignoreCase = true) ||
+            producto.categoria.contains(searchQuery, ignoreCase = true) ||
+            producto.productoDescripcion.contains(searchQuery, ignoreCase = true)
+        }
+
+        matchesCategory && matchesPrice && matchesSearch
     }
 
     Scaffold(
@@ -63,19 +72,32 @@ fun CategoriasScreen(
             TopAppBar(
                 title = { Text("Categorías") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.navigateUp() }) {
+                    IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 },
                 actions = {
                     IconButton(onClick = { showFilterDialog = true }) {
                         Badge(
-                            containerColor = if (minPrice > 100 || maxPrice < 1000000)
+                            containerColor = if (minPrice > 0 || maxPrice < 1000000)
                                 MaterialTheme.colorScheme.primary
                             else MaterialTheme.colorScheme.surfaceVariant
                         ) {
                             Icon(Icons.Default.FilterList, "Filtrar por precio")
                         }
+                    }
+                }
+            )
+        },
+        bottomBar = {
+            com.autoparts.presentation.inicio.BottomNavigationBar(
+                selectedItem = 1,
+                onItemSelected = { index ->
+                    when (index) {
+                        0 -> onNavigateToHome()
+                        1 -> { }
+                        2 -> onNavigateToServicios()
+                        3 -> onNavigateToCarrito()
                     }
                 }
             )
@@ -86,6 +108,31 @@ fun CategoriasScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                placeholder = { Text("Buscar productos...") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, "Buscar")
+                },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Default.Close, "Limpiar")
+                        }
+                    }
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(24.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+                )
+            )
+
             CategoryFilterRow(
                 categorias = categorias,
                 selectedCategory = selectedCategory,
@@ -109,11 +156,12 @@ fun CategoriasScreen(
                     fontWeight = FontWeight.Bold
                 )
 
-                if (selectedCategory != null || minPrice > 100 || maxPrice < 1000000) {
+                if (selectedCategory != null || minPrice > 0 || maxPrice < 1000000 || searchQuery.isNotEmpty()) {
                     TextButton(onClick = {
                         selectedCategory = "Uso General"
-                        minPrice = 100
+                        minPrice = 0
                         maxPrice = 1000000
+                        searchQuery = ""
                     }) {
                         Text("Limpiar filtros")
                     }
@@ -130,7 +178,7 @@ fun CategoriasScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.SearchOff,
+                            imageVector = Icons.Default.Search,
                             contentDescription = "Sin resultados",
                             modifier = Modifier.size(64.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
@@ -153,13 +201,16 @@ fun CategoriasScreen(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(filteredProducts) { producto ->
+                    items(
+                        items = filteredProducts,
+                        key = { producto -> producto.productoId ?: 0 }
+                    ) { producto ->
                         ProductoFilteredCard(
                             producto = producto,
                             onProductoClick = {
-                                navController.navigate(
-                                    Screen.ProductoDetalle.createRoute(producto.productoId ?: 0)
-                                )
+                                producto.productoId?.let { id ->
+                                    onNavigateToProductoDetalle(id)
+                                }
                             }
                         )
                     }
@@ -343,8 +394,24 @@ fun PriceFilterDialog(
     onDismiss: () -> Unit,
     onApply: () -> Unit
 ) {
-    var tempMinPrice by remember { mutableStateOf(minPrice.toFloat()) }
-    var tempMaxPrice by remember { mutableStateOf(maxPrice.toFloat()) }
+    var selectedMinPrice by remember { mutableIntStateOf(minPrice) }
+    var selectedMaxPrice by remember { mutableIntStateOf(maxPrice) }
+
+    val priceOptions = listOf(
+        0 to "Sin mínimo",
+        100 to "RD$ 100",
+        500 to "RD$ 500",
+        1000 to "RD$ 1,000",
+        10000 to "RD$ 10,000+"
+    )
+
+    val maxPriceOptions = listOf(
+        1000 to "RD$ 1,000",
+        5000 to "RD$ 5,000",
+        10000 to "RD$ 10,000",
+        50000 to "RD$ 50,000",
+        1000000 to "Sin máximo"
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -353,48 +420,82 @@ fun PriceFilterDialog(
             Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Column {
-                    Text(
-                        text = "Precio mínimo: $${tempMinPrice.toInt()}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Slider(
-                        value = tempMinPrice,
-                        onValueChange = {
-                            tempMinPrice = it.coerceAtLeast(100f)
-                            if (tempMinPrice > tempMaxPrice) {
-                                tempMaxPrice = tempMinPrice
-                            }
-                        },
-                        valueRange = 100f..1000000f,
-                        steps = 99,
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary
+                Text(
+                    text = "Precio mínimo",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    priceOptions.forEach { (price, label) ->
+                        FilterChip(
+                            selected = selectedMinPrice == price,
+                            onClick = {
+                                selectedMinPrice = price
+                                if (selectedMinPrice > selectedMaxPrice && price > 0) {
+                                    selectedMaxPrice = when {
+                                        price >= 10000 -> 1000000
+                                        price >= 1000 -> 10000
+                                        price >= 500 -> 1000
+                                        else -> 1000
+                                    }
+                                }
+                            },
+                            label = { Text(label) },
+                            leadingIcon = if (selectedMinPrice == price) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else null
                         )
-                    )
+                    }
                 }
 
-                Column {
-                    Text(
-                        text = "Precio máximo: $${tempMaxPrice.toInt()}",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Slider(
-                        value = tempMaxPrice,
-                        onValueChange = {
-                            tempMaxPrice = it
-                            if (tempMaxPrice < tempMinPrice) {
-                                tempMinPrice = tempMaxPrice.coerceAtLeast(100f)
-                            }
-                        },
-                        valueRange = 100f..1000000f,
-                        steps = 99,
-                        colors = SliderDefaults.colors(
-                            thumbColor = MaterialTheme.colorScheme.primary,
-                            activeTrackColor = MaterialTheme.colorScheme.primary
+                HorizontalDivider()
+
+                Text(
+                    text = "Precio máximo",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
+                )
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    maxPriceOptions.forEach { (price, label) ->
+                        FilterChip(
+                            selected = selectedMaxPrice == price,
+                            onClick = {
+                                selectedMaxPrice = price
+                                if (selectedMaxPrice < selectedMinPrice && price < 1000000) {
+                                    selectedMinPrice = when {
+                                        price <= 1000 -> 0
+                                        price <= 5000 -> 1000
+                                        price <= 10000 -> 5000
+                                        else -> 10000
+                                    }
+                                }
+                            },
+                            label = { Text(label) },
+                            leadingIcon = if (selectedMaxPrice == price) {
+                                {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            } else null
                         )
-                    )
+                    }
                 }
 
                 Card(
@@ -413,7 +514,12 @@ fun PriceFilterDialog(
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                         Text(
-                            text = "$${tempMinPrice.toInt()} - $${tempMaxPrice.toInt()}",
+                            text = when {
+                                selectedMinPrice == 0 && selectedMaxPrice == 1000000 -> "Todos los precios"
+                                selectedMinPrice == 0 -> "Hasta RD$ ${String.format(Locale.US, "%,d", selectedMaxPrice)}"
+                                selectedMaxPrice == 1000000 -> "Desde RD$ ${String.format(Locale.US, "%,d", selectedMinPrice)}"
+                                else -> "RD$ ${String.format(Locale.US, "%,d", selectedMinPrice)} - RD$ ${String.format(Locale.US, "%,d", selectedMaxPrice)}"
+                            },
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -424,8 +530,8 @@ fun PriceFilterDialog(
         },
         confirmButton = {
             Button(onClick = {
-                onMinPriceChange(tempMinPrice.toInt())
-                onMaxPriceChange(tempMaxPrice.toInt())
+                onMinPriceChange(selectedMinPrice)
+                onMaxPriceChange(selectedMaxPrice)
                 onApply()
             }) {
                 Text("Aplicar")
