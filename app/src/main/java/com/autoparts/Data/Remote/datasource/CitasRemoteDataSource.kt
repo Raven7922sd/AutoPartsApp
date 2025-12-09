@@ -9,6 +9,10 @@ import javax.inject.Inject
 class CitasRemoteDataSource @Inject constructor(
     private val apiService: CitasApiService
 ) {
+    companion object {
+        private const val ERROR_DESCONOCIDO = "Error desconocido"
+    }
+
     suspend fun getCitas(): Resource<List<CitaDto>> {
         return try {
             val response = apiService.getCitas()
@@ -18,7 +22,7 @@ class CitasRemoteDataSource @Inject constructor(
                 Resource.Error(message = "Error: ${response.code()}")
             }
         } catch (e: Exception) {
-            Resource.Error(message = e.message ?: "Error desconocido")
+            Resource.Error(message = e.message ?: ERROR_DESCONOCIDO)
         }
     }
 
@@ -31,7 +35,7 @@ class CitasRemoteDataSource @Inject constructor(
                 Resource.Error(message = "Error al crear cita")
             }
         } catch (e: Exception) {
-            Resource.Error(message = e.message ?: "Error desconocido")
+            Resource.Error(message = e.message ?: ERROR_DESCONOCIDO)
         }
     }
 
@@ -44,7 +48,7 @@ class CitasRemoteDataSource @Inject constructor(
                 Resource.Error(message = "Error al confirmar cita: ${response.code()}")
             }
         } catch (e: Exception) {
-            Resource.Error(message = e.message ?: "Error desconocido")
+            Resource.Error(message = e.message ?: ERROR_DESCONOCIDO)
         }
     }
 
@@ -57,7 +61,7 @@ class CitasRemoteDataSource @Inject constructor(
                 Resource.Error(message = "Error al cancelar cita")
             }
         } catch (e: Exception) {
-            Resource.Error(message = e.message ?: "Error desconocido")
+            Resource.Error(message = e.message ?: ERROR_DESCONOCIDO)
         }
     }
 }
