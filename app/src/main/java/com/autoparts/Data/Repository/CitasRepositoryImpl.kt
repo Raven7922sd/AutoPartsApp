@@ -13,13 +13,17 @@ class CitasRepositoryImpl @Inject constructor(
     private val remoteDataSource: CitasRemoteDataSource
 ) : CitasRepository {
 
+    companion object {
+        private const val ERROR_DESCONOCIDO = "Error desconocido"
+    }
+
     override suspend fun getCitas(): Resource<List<Cita>> {
         return when (val result = remoteDataSource.getCitas()) {
             is Resource.Success -> {
                 val citas = result.data?.map { CitaMapper.toDomain(it) } ?: emptyList()
                 Resource.Success(citas)
             }
-            is Resource.Error -> Resource.Error(result.message ?: "Error desconocido")
+            is Resource.Error -> Resource.Error(result.message ?: ERROR_DESCONOCIDO)
             is Resource.Loading -> Resource.Loading()
         }
     }
@@ -37,7 +41,7 @@ class CitasRepositoryImpl @Inject constructor(
                     Resource.Success(CitaMapper.toDomain(dto))
                 } ?: Resource.Error("Error al crear cita")
             }
-            is Resource.Error -> Resource.Error(result.message ?: "Error desconocido")
+            is Resource.Error -> Resource.Error(result.message ?: ERROR_DESCONOCIDO)
             is Resource.Loading -> Resource.Loading()
         }
     }
@@ -49,7 +53,7 @@ class CitasRepositoryImpl @Inject constructor(
                     Resource.Success(CitaMapper.toDomain(dto))
                 } ?: Resource.Error("Error al confirmar cita")
             }
-            is Resource.Error -> Resource.Error(result.message ?: "Error desconocido")
+            is Resource.Error -> Resource.Error(result.message ?: ERROR_DESCONOCIDO)
             is Resource.Loading -> Resource.Loading()
         }
     }
