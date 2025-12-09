@@ -72,7 +72,7 @@ class ServicioDetalleViewModel @Inject constructor(
 
             if (isLoggedIn) {
                 _uiState.value.servicio?.let { servicio ->
-                    _uiEffect.emit(ServicioDetalleUiEffect.NavigateToAgendarCita(servicio.servicioId ?: 0))
+                    _uiEffect.emit(ServicioDetalleUiEffect.NavigateToAgendarCita(servicio.servicioId))
                 }
             } else {
                 _uiEffect.emit(ServicioDetalleUiEffect.NavigateToLogin)
