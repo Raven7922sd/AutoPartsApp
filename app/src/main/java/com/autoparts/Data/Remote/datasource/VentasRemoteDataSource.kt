@@ -11,6 +11,10 @@ import javax.inject.Inject
 class VentasRemoteDataSource @Inject constructor(
     private val apiService: VentasApiService
 ) {
+    companion object {
+        private const val ERROR_DESCONOCIDO = "Error desconocido"
+    }
+
     suspend fun processCheckout(checkoutRequest: CheckoutRequest): Resource<VentaDto> {
         return try {
             val response = apiService.processCheckout(checkoutRequest)
@@ -20,7 +24,7 @@ class VentasRemoteDataSource @Inject constructor(
                 Resource.Error(message = "Error al procesar compra: ${response.code()}")
             }
         } catch (e: Exception) {
-            Resource.Error(message = e.message ?: "Error desconocido")
+            Resource.Error(message = e.message ?: ERROR_DESCONOCIDO)
         }
     }
 
@@ -33,7 +37,7 @@ class VentasRemoteDataSource @Inject constructor(
                 Resource.Error(message = "Error: ${response.code()}")
             }
         } catch (e: Exception) {
-            Resource.Error(message = e.message ?: "Error desconocido")
+            Resource.Error(message = e.message ?: ERROR_DESCONOCIDO)
         }
     }
 
@@ -46,7 +50,7 @@ class VentasRemoteDataSource @Inject constructor(
                 Resource.Error(message = "Venta no encontrada")
             }
         } catch (e: Exception) {
-            Resource.Error(message = e.message ?: "Error desconocido")
+            Resource.Error(message = e.message ?: ERROR_DESCONOCIDO)
         }
     }
 
@@ -75,7 +79,7 @@ class VentasRemoteDataSource @Inject constructor(
             }
         } catch (e: Exception) {
             Resource.Error(
-                message = e.message ?: "Error desconocido al obtener ventas"
+                message = e.message ?: "$ERROR_DESCONOCIDO al obtener ventas"
             )
         }
     }
@@ -99,7 +103,7 @@ class VentasRemoteDataSource @Inject constructor(
             }
         } catch (e: Exception) {
             Resource.Error(
-                message = e.message ?: "Error desconocido al obtener estadísticas"
+                message = e.message ?: "$ERROR_DESCONOCIDO al obtener estadísticas"
             )
         }
     }
