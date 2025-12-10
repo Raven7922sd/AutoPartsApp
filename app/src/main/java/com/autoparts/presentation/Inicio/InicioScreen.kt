@@ -1,5 +1,6 @@
-package com.autoparts.presentation.Inicio
+package com.autoparts.presentation.inicio
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,6 +9,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -16,242 +18,496 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.navigation.NavController
-import coil.compose.AsyncImage
-import com.autoparts.dominio.model.Producto
+import com.autoparts.R
+import com.autoparts.domain.model.Producto
 import com.autoparts.presentation.components.ProductImage
-import com.autoparts.presentation.navigation.Screen
-import kotlinx.coroutines.flow.collectLatest
+import com.autoparts.ui.theme.AutoPartsAppTheme
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun HomeScreen(
-    navController: NavController,
-    userId: String?,
-    viewModel: InicioViewModel = hiltViewModel()
+fun InicioScreen(
+    viewModel: InicioViewModel = hiltViewModel(),
+    onNavigateToCarrito: () -> Unit,
+    onNavigateToLogin: () -> Unit,
+    onNavigateToPerfil: () -> Unit,
+    onNavigateToProductoDetalle: (Int) -> Unit,
+    onNavigateToCategoria: (String) -> Unit,
+    onNavigateToCategorias: () -> Unit,
+    onNavigateToServicios: () -> Unit,
+    onNavigateToVentas: () -> Unit,
+    onNavigateToMisCitas: () -> Unit,
+    onNavigateToAdminCitas: () -> Unit = {},
+    onNavigateToAdminVentas: () -> Unit = {}
 ) {
-    val state by viewModel.state.collectAsStateWithLifecycle()
-    val snack = remember { SnackbarHostState() }
-
-    LaunchedEffect(userId) {
-        userId?.let { viewModel.onEvent(InicioUiEvent.LoadUser(it)) }
-    }
+    val state by viewModel.state.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(Unit) {
-        viewModel.effects.collectLatest { effect ->
+        viewModel.effects.collect { effect ->
             when (effect) {
-                Efecto.NavigateLogin -> navController.navigate(Screen.Login.route) {
-                    popUpTo(Screen.Home.route) { inclusive = true }
+                is InicioUiEffect.NavigateToCarrito -> onNavigateToCarrito()
+                is InicioUiEffect.NavigateToLogin -> onNavigateToLogin()
+                is InicioUiEffect.NavigateToPerfil -> onNavigateToPerfil()
+                is InicioUiEffect.NavigateToVentas -> onNavigateToVentas()
+                is InicioUiEffect.NavigateToMisCitas -> onNavigateToMisCitas()
+                is InicioUiEffect.NavigateToAdminCitas -> onNavigateToAdminCitas()
+                is InicioUiEffect.NavigateToAdminVentas -> onNavigateToAdminVentas()
+                is InicioUiEffect.NavigateToCategorias -> onNavigateToCategorias()
+                is InicioUiEffect.NavigateToServicios -> onNavigateToServicios()
+                is InicioUiEffect.NavigateToProductoDetalle -> onNavigateToProductoDetalle(effect.productoId)
+                is InicioUiEffect.ShowMessage -> {
+                    snackbarHostState.showSnackbar(effect.message)
                 }
             }
         }
     }
 
-    LaunchedEffect(state.userMessage) {
-        state.userMessage?.let {
-            if (it.isNotBlank()) snack.showSnackbar(it)
-            viewModel.onEvent(InicioUiEvent.UserMessageShown)
+    LaunchedEffect(state.error) {
+        state.error?.let { error ->
+            snackbarHostState.showSnackbar(error)
         }
     }
 
-    NewHomeScreenContent(
-        state = state,
+    InicioScreenContent(
+        uiState = state,
         onEvent = viewModel::onEvent,
-        onProductoClick = { productoId ->
-            navController.navigate(Screen.ProductoDetalle.createRoute(productoId))
-        },
-        onNavigateToCarrito = {
-            navController.navigate(Screen.Carrito.route)
-        },
-        onNavigateToCategorias = {
-            navController.navigate(Screen.Categorias.route)
-        },
-        onNavigateToPerfil = {
-            if (state.userId != null) {
-                navController.navigate(Screen.Perfil.route)
-            } else {
-                navController.navigate(Screen.Login.route)
-            }
-        },
-        onNavigateToVentas = {
-            if (state.userId != null) {
-                navController.navigate(Screen.Ventas.route)
-            } else {
-                navController.navigate(Screen.Login.route)
-            }
-        },
-        snack = snack
+        snackbarHostState = snackbarHostState,
+        onNavigateToCarrito = onNavigateToCarrito,
+        onNavigateToPerfil = onNavigateToPerfil,
+        onNavigateToLogin = onNavigateToLogin,
+        onNavigateToCategorias = onNavigateToCategorias,
+        onNavigateToServicios = onNavigateToServicios
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NewHomeScreenContent(
-    state: InicioUiState,
+fun InicioScreenContent(
+    uiState: InicioUiState,
     onEvent: (InicioUiEvent) -> Unit,
-    onProductoClick: (Int) -> Unit,
+    snackbarHostState: SnackbarHostState,
     onNavigateToCarrito: () -> Unit,
-    onNavigateToCategorias: () -> Unit,
     onNavigateToPerfil: () -> Unit,
-    onNavigateToVentas: () -> Unit,
-    snack: SnackbarHostState
+    onNavigateToLogin: () -> Unit,
+    onNavigateToCategorias: () -> Unit,
+    onNavigateToServicios: () -> Unit
 ) {
-    Scaffold(
-        modifier = Modifier.fillMaxSize(),
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Inicio",
-                        style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                actions = {
-                    IconButton(onClick = onNavigateToCarrito) {
-                        Icon(
-                            imageVector = Icons.Default.ShoppingCart,
-                            contentDescription = "Carrito",
-                            tint = MaterialTheme.colorScheme.onSurface
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+    val scope = rememberCoroutineScope()
+    var showUserMenu by remember { mutableStateOf(false) }
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp)
+                ) {
+                    // Header del Drawer
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.autoparts_redondo_bien),
+                            contentDescription = "AutoParts",
+                            modifier = Modifier.size(40.dp)
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Text(
+                            text = "AutoParts",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold
                         )
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
-            )
-        },
-        bottomBar = {
-            BottomNavigationBar(
-                selectedItem = 0, // Inicio está seleccionado
-                onItemSelected = { index ->
-                    when (index) {
-                        0 -> { /* Ya estamos en inicio */ }
-                        1 -> onNavigateToCategorias()
-                        2 -> onNavigateToCarrito()
-                        3 -> onNavigateToPerfil()
+
+                    HorizontalDivider()
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    NavigationDrawerItem(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingBag,
+                                contentDescription = null
+                            )
+                        },
+                        label = { Text("Mis Compras") },
+                        selected = false,
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                            }
+                            onEvent(InicioUiEvent.OnNavigateToVentas)
+                        }
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    NavigationDrawerItem(
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = null
+                            )
+                        },
+                        label = { Text("Mis Citas") },
+                        selected = false,
+                        onClick = {
+                            scope.launch {
+                                drawerState.close()
+                            }
+                            onEvent(InicioUiEvent.OnNavigateToMisCitas)
+                        }
+                    )
+
+                    if (uiState.isAdmin) {
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        HorizontalDivider()
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Text(
+                            text = "Panel de Administrador",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        )
+
+                        NavigationDrawerItem(
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.CalendarMonth,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            label = { Text("Gestionar Citas") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                }
+                                onEvent(InicioUiEvent.OnNavigateToAdminCitas)
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        NavigationDrawerItem(
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.Receipt,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            },
+                            label = { Text("Ver Todas las Ventas") },
+                            selected = false,
+                            onClick = {
+                                scope.launch {
+                                    drawerState.close()
+                                }
+                                onEvent(InicioUiEvent.OnNavigateToAdminVentas)
+                            }
+                        )
                     }
                 }
-            )
-        },
-        snackbarHost = { SnackbarHost(hostState = snack) }
-    ) { padding ->
-        LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                SearchBar(
-                    query = state.searchQuery,
-                    onQueryChange = { onEvent(InicioUiEvent.SearchQueryChanged(it)) },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            }
+        }
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Image(
+                                painter = painterResource(id = R.drawable.autoparts_redondo_bien),
+                                contentDescription = "AutoParts",
+                                modifier = Modifier.size(32.dp)
+                            )
+                            Text(
+                                text = "AutoParts",
+                                style = MaterialTheme.typography.headlineMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = {
+                            scope.launch {
+                                drawerState.open()
+                            }
+                        }) {
+                            Icon(
+                                imageVector = Icons.Default.Menu,
+                                contentDescription = "Menú",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = onNavigateToCarrito) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = "Carrito",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+
+                        Box {
+                            IconButton(onClick = { showUserMenu = true }) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = "Perfil",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = showUserMenu,
+                                onDismissRequest = { showUserMenu = false }
+                            ) {
+                                if (uiState.isLoggedIn) {
+                                    DropdownMenuItem(
+                                        text = { Text("Mi Perfil") },
+                                        onClick = {
+                                            showUserMenu = false
+                                            onNavigateToPerfil()
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.Default.Person, "Mi Perfil")
+                                        }
+                                    )
+                                    HorizontalDivider()
+                                    DropdownMenuItem(
+                                        text = { Text("Cerrar Sesión") },
+                                        onClick = {
+                                            showUserMenu = false
+                                            onEvent(InicioUiEvent.OnCerrarSesion)
+                                        },
+                                        leadingIcon = {
+                                            Icon(Icons.AutoMirrored.Filled.ExitToApp, "Cerrar Sesión")
+                                        }
+                                    )
+                                } else {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text("Iniciar Sesión")
+                                            }
+                                        },
+                                        onClick = {
+                                            showUserMenu = false
+                                            onNavigateToLogin()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            },
+        bottomBar = {
+            Surface(
+                modifier = Modifier.padding(bottom = 32.dp)
+            ) {
+                BottomNavigationBar(
+                    selectedItem = 0,
+                    onItemSelected = { index ->
+                        when (index) {
+                            0 -> { }
+                            1 -> onNavigateToCategorias()
+                            2 -> onNavigateToServicios()
+                            3 -> onNavigateToCarrito()
+                        }
+                    }
                 )
             }
-
-            item {
-                Column(
-                    modifier = Modifier.padding(vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "Categorías Destacadas",
-                        style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp)
+        },
+        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
+        ) { padding ->
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                item {
+                    SearchBar(
+                        query = uiState.searchQuery,
+                        onQueryChange = { onEvent(InicioUiEvent.OnSearchQueryChanged(it)) },
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
-                    val categorias = listOf(
-                        "Uso General",
-                        "Autos o Vehículos Ligeros",
-                        "Motocicletas",
-                        "Vehículos Pesados"
-                    )
+                if (uiState.searchQuery.isNotBlank()) {
+                    val productosFiltrados = uiState.productosParaMostrar.filter {
+                        it.productoNombre.contains(uiState.searchQuery, ignoreCase = true) ||
+                        it.categoria.contains(uiState.searchQuery, ignoreCase = true) ||
+                        it.productoDescripcion.contains(uiState.searchQuery, ignoreCase = true)
+                    }
 
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(categorias) { categoria ->
-                            val productoCategoria = state.listProductos
-                                .firstOrNull { it.categoria.equals(categoria, ignoreCase = true) }
+                    if (productosFiltrados.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "Resultados de búsqueda (${productosFiltrados.size})",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
 
-                            if (productoCategoria != null) {
-                                CategoryProductCard(
-                                    producto = productoCategoria,
-                                    categoria = categoria,
-                                    onProductoClick = {
-                                        onProductoClick(productoCategoria.productoId ?: 0)
-                                    }
+                        items(
+                            items = productosFiltrados,
+                            key = { it.productoId ?: 0 }
+                        ) { producto ->
+                            ProductoCardWithImage(
+                                producto = producto,
+                                onProductoClick = {
+                                    onEvent(InicioUiEvent.OnProductoClick(producto.productoId ?: 0))
+                                },
+                                onAddToCarrito = {
+                                    onEvent(InicioUiEvent.OnAddToCarrito(producto.productoId ?: 0))
+                                },
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                        }
+                    } else {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
                                 )
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(24.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Search,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Text(
+                                        text = "No se encontraron productos",
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Text(
+                                        text = "Intenta con otra búsqueda",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            item {
-                Text(
-                    text = "Productos Destacados",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
+                if (uiState.searchQuery.isBlank()) {
+                    item {
+                        Column(
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Categorias",
+                                style = MaterialTheme.typography.headlineSmall,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(horizontal = 16.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
 
-            val categorias = listOf(
-                "Uso General",
-                "Autos o Vehículos Ligeros",
-                "Motocicletas",
-                "Vehículos Pesados"
-            )
+                            val categorias = listOf(
+                                "Uso General",
+                                "Autos o Vehículos Ligeros",
+                                "Motocicletas",
+                                "Vehículos Pesados"
+                            )
 
-            val productosDestacados = categorias.mapNotNull { categoria ->
-                state.listProductos.firstOrNull {
-                    it.categoria.equals(categoria, ignoreCase = true)
+                            LazyRow(
+                                contentPadding = PaddingValues(horizontal = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                items(categorias) { categoria ->
+                                    val productoCategoria = uiState.productosParaMostrar
+                                        .firstOrNull { it.categoria.equals(categoria, ignoreCase = true) }
+
+                                    if (productoCategoria != null) {
+                                        CategoryProductCard(
+                                            producto = productoCategoria,
+                                            categoria = categoria,
+                                            onProductoClick = {
+                                                onEvent(InicioUiEvent.OnProductoClick(productoCategoria.productoId ?: 0))
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    item {
+                        Text(
+                            text = "Nuestros Productos",
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+
+                    items(
+                        items = uiState.productosParaMostrar,
+                        key = { it.productoId ?: 0 }
+                    ) { producto ->
+                        ProductoCardWithImage(
+                            producto = producto,
+                            onProductoClick = {
+                                onEvent(InicioUiEvent.OnProductoClick(producto.productoId ?: 0))
+                            },
+                            onAddToCarrito = {
+                                onEvent(InicioUiEvent.OnAddToCarrito(producto.productoId ?: 0))
+                            },
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-
-            items(
-                items = productosDestacados,
-                key = { it.productoId ?: 0 }
-            ) { producto ->
-                ProductoCardWithImage(
-                    producto = producto,
-                    onProductoClick = { onProductoClick(producto.productoId ?: 0) },
-                    onAddToCarrito = {
-                        onEvent(InicioUiEvent.AddToCarrito(producto.productoId ?: 0))
-                    },
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(16.dp))
-            }
         }
-    }
-
-    if (state.showDialog) {
-        EditProfileDialog(
-            email = state.email,
-            phoneNumber = state.phoneNumber,
-            emailError = state.emailError,
-            phoneNumberError = state.phoneNumberError,
-            onEmailChange = { onEvent(InicioUiEvent.EmailChanged(it)) },
-            onPhoneNumberChange = { onEvent(InicioUiEvent.PhoneNumberChanged(it)) },
-            onSave = { onEvent(InicioUiEvent.Save) },
-            onDismiss = { onEvent(InicioUiEvent.hideDialogEdit) },
-            isLoading = state.isLoadingUser,
-            onLogout = { onEvent(InicioUiEvent.Logout) }
-        )
     }
 }
 
@@ -265,7 +521,7 @@ fun SearchBar(
         value = query,
         onValueChange = onQueryChange,
         modifier = modifier.fillMaxWidth(),
-        placeholder = { Text("Buscar productos...") },
+        placeholder = { Text("Buscar productos") },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
@@ -357,10 +613,10 @@ fun CategoryProductCard(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "$${String.format("%,d", producto.productoMonto)}",
+                        text = "RD$ ${String.format(java.util.Locale.US, "%,d", producto.productoMonto)}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        color = Color.White
                     )
                 }
             }
@@ -427,7 +683,7 @@ fun ProductoCardWithImage(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "$${String.format("%,d", producto.productoMonto)}",
+                        text = "RD$ ${String.format(java.util.Locale.US, "%,d", producto.productoMonto)}",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
@@ -459,117 +715,68 @@ fun BottomNavigationBar(
     onItemSelected: (Int) -> Unit
 ) {
     NavigationBar(
+        modifier = Modifier.height(64.dp),
         containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 8.dp
+        tonalElevation = 4.dp,
+        windowInsets = WindowInsets(0, 0, 0, 0)
     ) {
+        val iconModifier = Modifier.size(20.dp)
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Home, contentDescription = "Inicio") },
-            label = { Text("Inicio") },
+            icon = { Icon(Icons.Default.Home, contentDescription = "Inicio", modifier = iconModifier) },
+            label = { Text("Inicio", style = MaterialTheme.typography.labelSmall) },
             selected = selectedItem == 0,
             onClick = { onItemSelected(0) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Menu, contentDescription = "Categorías") },
-            label = { Text("Categorías") },
+                icon = { Icon(Icons.Default.Menu, contentDescription = "Categorías", modifier = iconModifier) },
+            label = { Text("Categorías", style = MaterialTheme.typography.labelSmall) },
             selected = selectedItem == 1,
             onClick = { onItemSelected(1) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Carrito") },
-            label = { Text("Carrito") },
+            icon = { Icon(Icons.Default.Build, contentDescription = "Servicios", modifier = iconModifier) },
+            label = { Text("Servicios", style = MaterialTheme.typography.labelSmall) },
             selected = selectedItem == 2,
             onClick = { onItemSelected(2) }
         )
         NavigationBarItem(
-            icon = { Icon(Icons.Default.Person, contentDescription = "Perfil") },
-            label = { Text("Perfil") },
+            icon = { Icon(Icons.Default.ShoppingCart, contentDescription = "Carrito", modifier = iconModifier) },
+            label = { Text("Carrito", style = MaterialTheme.typography.labelSmall) },
             selected = selectedItem == 3,
             onClick = { onItemSelected(3) }
         )
     }
 }
 
+@Preview(showBackground = true)
 @Composable
-fun EditProfileDialog(
-    email: String,
-    phoneNumber: String,
-    emailError: String?,
-    phoneNumberError: String?,
-    onEmailChange: (String) -> Unit,
-    onPhoneNumberChange: (String) -> Unit,
-    onSave: () -> Unit,
-    onDismiss: () -> Unit,
-    isLoading: Boolean,
-    onLogout: () -> Unit = {}
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Editar Perfil") },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = onEmailChange,
-                    label = { Text("Email") },
-                    isError = emailError != null,
-                    supportingText = emailError?.let { { Text(it) } },
-                    singleLine = true,
-                    enabled = !isLoading
-                )
-                OutlinedTextField(
-                    value = phoneNumber,
-                    onValueChange = onPhoneNumberChange,
-                    label = { Text("Teléfono") },
-                    isError = phoneNumberError != null,
-                    supportingText = phoneNumberError?.let { { Text(it) } },
-                    singleLine = true,
-                    enabled = !isLoading
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                OutlinedButton(
-                    onClick = onLogout,
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isLoading,
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.error
+fun InicioScreenPreview() {
+    AutoPartsAppTheme {
+        InicioScreenContent(
+            uiState = InicioUiState(
+                productos = listOf(
+                    Producto(
+                        productoId = 1,
+                        productoNombre = "Aceite Mobil 1",
+                        productoMonto = 1500,
+                        productoCantidad = 10,
+                        productoDescripcion = "Aceite sintético premium",
+                        productoImagenUrl = "",
+                        categoria = "Uso General",
+                        fecha = "2024-01-01"
                     )
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.ExitToApp,
-                        contentDescription = "Cerrar sesión",
-                        modifier = Modifier.size(20.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Cerrar Sesión")
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = onSave,
-                enabled = !isLoading
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(16.dp),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Text("Guardar")
-                }
-            }
-        },
-        dismissButton = {
-            TextButton(
-                onClick = onDismiss,
-                enabled = !isLoading
-            ) {
-                Text("Cancelar")
-            }
-        }
-    )
+                ),
+                isLoading = false,
+                isLoggedIn = false,
+                searchQuery = ""
+            ),
+            onEvent = {},
+            snackbarHostState = SnackbarHostState(),
+            onNavigateToCarrito = {},
+            onNavigateToPerfil = {},
+            onNavigateToLogin = {},
+            onNavigateToCategorias = {},
+            onNavigateToServicios = {}
+        )
+    }
 }
