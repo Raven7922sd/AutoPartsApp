@@ -192,12 +192,12 @@ fun UserInfoCard(
             ) {
                 Icon(
                     Icons.Default.Phone,
-                    contentDescription = "Teléfono",
+                    contentDescription = LABEL_TELEFONO,
                     tint = MaterialTheme.colorScheme.primary
                 )
                 Column {
                     Text(
-                        text = "Teléfono",
+                        text = LABEL_TELEFONO,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
