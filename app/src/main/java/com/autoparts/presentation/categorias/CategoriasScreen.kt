@@ -25,6 +25,11 @@ import com.autoparts.presentation.inicio.InicioViewModel
 import com.autoparts.presentation.components.ProductImage
 import java.util.Locale
 
+private const val CATEGORIA_USO_GENERAL = "Uso General"
+private const val CATEGORIA_AUTOS = "Autos o Vehículos Ligeros"
+private const val CATEGORIA_MOTOCICLETAS = "Motocicletas"
+private const val CATEGORIA_VEHICULOS_PESADOS = "Vehículos Pesados"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoriasScreen(
@@ -36,17 +41,17 @@ fun CategoriasScreen(
     viewModel: InicioViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
-    var selectedCategory by remember { mutableStateOf<String?>("Uso General") }
+    var selectedCategory by remember { mutableStateOf<String?>(CATEGORIA_USO_GENERAL) }
     var minPrice by remember { mutableIntStateOf(0) }
     var maxPrice by remember { mutableIntStateOf(1000000) }
     var showFilterDialog by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     val categorias = listOf(
-        "Uso General",
-        "Autos o Vehículos Ligeros",
-        "Motocicletas",
-        "Vehículos Pesados"
+        CATEGORIA_USO_GENERAL,
+        CATEGORIA_AUTOS,
+        CATEGORIA_MOTOCICLETAS,
+        CATEGORIA_VEHICULOS_PESADOS
     )
 
     val filteredProducts = state.listProductos.filter { producto ->
@@ -90,17 +95,21 @@ fun CategoriasScreen(
             )
         },
         bottomBar = {
-            com.autoparts.presentation.inicio.BottomNavigationBar(
-                selectedItem = 1,
-                onItemSelected = { index ->
-                    when (index) {
-                        0 -> onNavigateToHome()
-                        1 -> { }
-                        2 -> onNavigateToServicios()
-                        3 -> onNavigateToCarrito()
+            Surface(
+                modifier = Modifier.padding(bottom = 32.dp)
+            ) {
+                com.autoparts.presentation.inicio.BottomNavigationBar(
+                    selectedItem = 1,
+                    onItemSelected = { index ->
+                        when (index) {
+                            0 -> onNavigateToHome()
+                            1 -> { }
+                            2 -> onNavigateToServicios()
+                            3 -> onNavigateToCarrito()
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -158,7 +167,7 @@ fun CategoriasScreen(
 
                 if (selectedCategory != null || minPrice > 0 || maxPrice < 1000000 || searchQuery.isNotEmpty()) {
                     TextButton(onClick = {
-                        selectedCategory = "Uso General"
+                        selectedCategory = CATEGORIA_USO_GENERAL
                         minPrice = 0
                         maxPrice = 1000000
                         searchQuery = ""
@@ -268,10 +277,10 @@ fun CategoryChip(
             ) {
                 Icon(
                     imageVector = when (categoria) {
-                        "Uso General" -> Icons.Default.Build
-                        "Autos o Vehículos Ligeros" -> Icons.Default.DirectionsCar
-                        "Motocicletas" -> Icons.Default.TwoWheeler
-                        "Vehículos Pesados" -> Icons.Default.LocalShipping
+                        CATEGORIA_USO_GENERAL -> Icons.Default.Build
+                        CATEGORIA_AUTOS -> Icons.Default.DirectionsCar
+                        CATEGORIA_MOTOCICLETAS -> Icons.Default.TwoWheeler
+                        CATEGORIA_VEHICULOS_PESADOS -> Icons.Default.LocalShipping
                         else -> Icons.Default.Category
                     },
                     contentDescription = null,
