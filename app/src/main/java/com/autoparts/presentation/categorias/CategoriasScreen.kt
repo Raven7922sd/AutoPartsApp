@@ -59,6 +59,31 @@ private fun hasActiveFilters(
            searchQuery.isNotEmpty()
 }
 
+private fun handleBottomNavigation(
+    index: Int,
+    onNavigateToHome: () -> Unit,
+    onNavigateToServicios: () -> Unit,
+    onNavigateToCarrito: () -> Unit
+) {
+    when (index) {
+        0 -> onNavigateToHome()
+        2 -> onNavigateToServicios()
+        3 -> onNavigateToCarrito()
+    }
+}
+
+private fun resetAllFilters(
+    onCategoryChange: (String?) -> Unit,
+    onMinPriceChange: (Int) -> Unit,
+    onMaxPriceChange: (Int) -> Unit,
+    onSearchQueryChange: (String) -> Unit
+) {
+    onCategoryChange(CATEGORIA_USO_GENERAL)
+    onMinPriceChange(PRICE_MIN_DEFAULT)
+    onMaxPriceChange(PRICE_MAX_DEFAULT)
+    onSearchQueryChange("")
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CategoriasScreen(
@@ -89,113 +114,48 @@ fun CategoriasScreen(
         matchesSearchQuery(producto, searchQuery)
     }
 
+    val isPriceFiltered = minPrice > PRICE_MIN_DEFAULT || maxPrice < PRICE_MAX_DEFAULT
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Categorías") },
-                navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
-                    }
-                },
-                actions = {
-                    val isPriceFiltered = minPrice > PRICE_MIN_DEFAULT || maxPrice < PRICE_MAX_DEFAULT
-                    IconButton(onClick = { showFilterDialog = true }) {
-                        Badge(
-                            containerColor = if (isPriceFiltered)
-                                MaterialTheme.colorScheme.primary
-                            else
-                                MaterialTheme.colorScheme.surfaceVariant
-                        ) {
-                            Icon(Icons.Default.FilterList, "Filtrar por precio")
-                        }
-                    }
-                }
+            CategoriasTopBar(
+                onNavigateBack = onNavigateBack,
+                isPriceFiltered = isPriceFiltered,
+                onFilterClick = { showFilterDialog = true }
             )
         },
         bottomBar = {
-            Surface(
-                modifier = Modifier.padding(bottom = 32.dp)
-            ) {
+            Surface(modifier = Modifier.padding(bottom = 32.dp)) {
                 com.autoparts.presentation.inicio.BottomNavigationBar(
                     selectedItem = 1,
                     onItemSelected = { index ->
-                        when (index) {
-                            0 -> onNavigateToHome()
-                            1 -> { }
-                            2 -> onNavigateToServicios()
-                            3 -> onNavigateToCarrito()
-                        }
+                        handleBottomNavigation(index, onNavigateToHome, onNavigateToServicios, onNavigateToCarrito)
                     }
                 )
             }
         }
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                placeholder = { Text("Buscar productos...") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, "Buscar")
-                },
-                trailingIcon = {
-                    ClearSearchButton(searchQuery) { searchQuery = "" }
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(24.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                    unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        CategoriasContent(
+            padding = padding,
+            searchQuery = searchQuery,
+            onSearchQueryChange = { searchQuery = it },
+            categorias = categorias,
+            selectedCategory = selectedCategory,
+            onCategorySelected = { category ->
+                selectedCategory = if (selectedCategory == category) null else category
+            },
+            filteredProducts = filteredProducts,
+            hasActiveFilters = hasActiveFilters(selectedCategory, minPrice, maxPrice, searchQuery),
+            onClearFilters = {
+                resetAllFilters(
+                    { selectedCategory = it },
+                    { minPrice = it },
+                    { maxPrice = it },
+                    { searchQuery = it }
                 )
-            )
-
-            CategoryFilterRow(
-                categorias = categorias,
-                selectedCategory = selectedCategory,
-                onCategorySelected = { category ->
-                    selectedCategory = if (selectedCategory == category) null else category
-                }
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "${filteredProducts.size} productos",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
-
-                ClearFiltersButton(
-                    visible = hasActiveFilters(selectedCategory, minPrice, maxPrice, searchQuery),
-                    onClick = {
-                        selectedCategory = CATEGORIA_USO_GENERAL
-                        minPrice = PRICE_MIN_DEFAULT
-                        maxPrice = PRICE_MAX_DEFAULT
-                        searchQuery = ""
-                    }
-                )
-            }
-
-            when {
-                filteredProducts.isEmpty() -> EmptyProductsView()
-                else -> ProductsListView(filteredProducts, onNavigateToProductoDetalle)
-            }
-        }
+            },
+            onNavigateToProductoDetalle = onNavigateToProductoDetalle
+        )
     }
 
     if (showFilterDialog) {
@@ -207,6 +167,126 @@ fun CategoriasScreen(
             onDismiss = { showFilterDialog = false },
             onApply = { showFilterDialog = false }
         )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CategoriasTopBar(
+    onNavigateBack: () -> Unit,
+    isPriceFiltered: Boolean,
+    onFilterClick: () -> Unit
+) {
+    TopAppBar(
+        title = { Text("Categorías") },
+        navigationIcon = {
+            IconButton(onClick = onNavigateBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
+            }
+        },
+        actions = {
+            IconButton(onClick = onFilterClick) {
+                Badge(
+                    containerColor = if (isPriceFiltered)
+                        MaterialTheme.colorScheme.primary
+                    else
+                        MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Icon(Icons.Default.FilterList, "Filtrar por precio")
+                }
+            }
+        }
+    )
+}
+
+@Composable
+private fun CategoriasContent(
+    padding: PaddingValues,
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    categorias: List<String>,
+    selectedCategory: String?,
+    onCategorySelected: (String) -> Unit,
+    filteredProducts: List<Producto>,
+    hasActiveFilters: Boolean,
+    onClearFilters: () -> Unit,
+    onNavigateToProductoDetalle: (Int) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+    ) {
+        SearchBar(searchQuery, onSearchQueryChange)
+
+        CategoryFilterRow(
+            categorias = categorias,
+            selectedCategory = selectedCategory,
+            onCategorySelected = onCategorySelected
+        )
+
+        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+        ProductsHeader(
+            productsCount = filteredProducts.size,
+            hasActiveFilters = hasActiveFilters,
+            onClearFilters = onClearFilters
+        )
+
+        ProductsContentView(filteredProducts, onNavigateToProductoDetalle)
+    }
+}
+
+@Composable
+private fun SearchBar(searchQuery: String, onSearchQueryChange: (String) -> Unit) {
+    OutlinedTextField(
+        value = searchQuery,
+        onValueChange = onSearchQueryChange,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        placeholder = { Text("Buscar productos...") },
+        leadingIcon = { Icon(Icons.Default.Search, "Buscar") },
+        trailingIcon = { ClearSearchButton(searchQuery) { onSearchQueryChange("") } },
+        singleLine = true,
+        shape = RoundedCornerShape(24.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline
+        )
+    )
+}
+
+@Composable
+private fun ProductsHeader(
+    productsCount: Int,
+    hasActiveFilters: Boolean,
+    onClearFilters: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "$productsCount productos",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+        ClearFiltersButton(visible = hasActiveFilters, onClick = onClearFilters)
+    }
+}
+
+@Composable
+private fun ProductsContentView(
+    filteredProducts: List<Producto>,
+    onNavigateToProductoDetalle: (Int) -> Unit
+) {
+    when {
+        filteredProducts.isEmpty() -> EmptyProductsView()
+        else -> ProductsListView(filteredProducts, onNavigateToProductoDetalle)
     }
 }
 
@@ -457,6 +537,30 @@ private fun formatPriceRange(minPrice: Int, maxPrice: Int): String = when {
     else -> "RD$ ${String.format(Locale.US, "%,d", minPrice)} - RD$ ${String.format(Locale.US, "%,d", maxPrice)}"
 }
 
+private fun handleMinPriceSelection(
+    price: Int,
+    currentMaxPrice: Int,
+    onMinPriceChange: (Int) -> Unit,
+    onMaxPriceChange: (Int) -> Unit
+) {
+    onMinPriceChange(price)
+    if (price > currentMaxPrice && price > PRICE_MIN_DEFAULT) {
+        onMaxPriceChange(adjustMaxPriceOnMinChange(price))
+    }
+}
+
+private fun handleMaxPriceSelection(
+    price: Int,
+    currentMinPrice: Int,
+    onMinPriceChange: (Int) -> Unit,
+    onMaxPriceChange: (Int) -> Unit
+) {
+    onMaxPriceChange(price)
+    if (price < currentMinPrice && price < PRICE_MAX_DEFAULT) {
+        onMinPriceChange(adjustMinPriceOnMaxChange(price))
+    }
+}
+
 @Composable
 fun PriceFilterDialog(
     minPrice: Int,
@@ -489,89 +593,28 @@ fun PriceFilterDialog(
         onDismissRequest = onDismiss,
         title = { Text("Filtrar por Precio") },
         text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = "Precio mínimo",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    priceOptions.forEach { (price, label) ->
-                        FilterChip(
-                            selected = selectedMinPrice == price,
-                            onClick = {
-                                selectedMinPrice = price
-                                if (selectedMinPrice > selectedMaxPrice && price > PRICE_MIN_DEFAULT) {
-                                    selectedMaxPrice = adjustMaxPriceOnMinChange(price)
-                                }
-                            },
-                            label = { Text(label) },
-                            leadingIcon = if (selectedMinPrice == price) {
-                                { Icon(Icons.Default.CheckCircle, null, Modifier.size(18.dp)) }
-                            } else null
-                        )
-                    }
-                }
-
-                HorizontalDivider()
-
-                Text(
-                    text = "Precio máximo",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    maxPriceOptions.forEach { (price, label) ->
-                        FilterChip(
-                            selected = selectedMaxPrice == price,
-                            onClick = {
-                                selectedMaxPrice = price
-                                if (selectedMaxPrice < selectedMinPrice && price < PRICE_MAX_DEFAULT) {
-                                    selectedMinPrice = adjustMinPriceOnMaxChange(price)
-                                }
-                            },
-                            label = { Text(label) },
-                            leadingIcon = if (selectedMaxPrice == price) {
-                                { Icon(Icons.Default.CheckCircle, null, Modifier.size(18.dp)) }
-                            } else null
-                        )
-                    }
-                }
-
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+            PriceFilterDialogContent(
+                priceOptions = priceOptions,
+                maxPriceOptions = maxPriceOptions,
+                selectedMinPrice = selectedMinPrice,
+                selectedMaxPrice = selectedMaxPrice,
+                onMinPriceSelect = { price ->
+                    handleMinPriceSelection(
+                        price,
+                        selectedMaxPrice,
+                        { selectedMinPrice = it },
+                        { selectedMaxPrice = it }
                     )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(12.dp)
-                    ) {
-                        Text(
-                            text = "Rango seleccionado:",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                        Text(
-                            text = formatPriceRange(selectedMinPrice, selectedMaxPrice),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
+                },
+                onMaxPriceSelect = { price ->
+                    handleMaxPriceSelection(
+                        price,
+                        selectedMinPrice,
+                        { selectedMinPrice = it },
+                        { selectedMaxPrice = it }
+                    )
                 }
-            }
+            )
         },
         confirmButton = {
             Button(onClick = {
@@ -588,4 +631,115 @@ fun PriceFilterDialog(
             }
         }
     )
+}
+
+@Composable
+private fun PriceFilterDialogContent(
+    priceOptions: List<Pair<Int, String>>,
+    maxPriceOptions: List<Pair<Int, String>>,
+    selectedMinPrice: Int,
+    selectedMaxPrice: Int,
+    onMinPriceSelect: (Int) -> Unit,
+    onMaxPriceSelect: (Int) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        MinPriceSection(priceOptions, selectedMinPrice, onMinPriceSelect)
+        HorizontalDivider()
+        MaxPriceSection(maxPriceOptions, selectedMaxPrice, onMaxPriceSelect)
+        PriceRangeSummary(selectedMinPrice, selectedMaxPrice)
+    }
+}
+
+@Composable
+private fun MinPriceSection(
+    priceOptions: List<Pair<Int, String>>,
+    selectedPrice: Int,
+    onPriceSelect: (Int) -> Unit
+) {
+    Text(
+        text = "Precio mínimo",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold
+    )
+    PriceOptionsRow(priceOptions, selectedPrice, onPriceSelect)
+}
+
+@Composable
+private fun MaxPriceSection(
+    priceOptions: List<Pair<Int, String>>,
+    selectedPrice: Int,
+    onPriceSelect: (Int) -> Unit
+) {
+    Text(
+        text = "Precio máximo",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold
+    )
+    PriceOptionsRow(priceOptions, selectedPrice, onPriceSelect)
+}
+
+@Composable
+private fun PriceOptionsRow(
+    options: List<Pair<Int, String>>,
+    selectedPrice: Int,
+    onPriceSelect: (Int) -> Unit
+) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        options.forEach { (price, label) ->
+            PriceFilterChip(
+                price = price,
+                label = label,
+                isSelected = selectedPrice == price,
+                onClick = { onPriceSelect(price) }
+            )
+        }
+    }
+}
+
+@Composable
+private fun PriceFilterChip(
+    price: Int,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = isSelected,
+        onClick = onClick,
+        label = { Text(label) },
+        leadingIcon = if (isSelected) {
+            { Icon(Icons.Default.CheckCircle, null, Modifier.size(18.dp)) }
+        } else null
+    )
+}
+
+@Composable
+private fun PriceRangeSummary(minPrice: Int, maxPrice: Int) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Text(
+                text = "Rango seleccionado:",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                text = formatPriceRange(minPrice, maxPrice),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
 }
