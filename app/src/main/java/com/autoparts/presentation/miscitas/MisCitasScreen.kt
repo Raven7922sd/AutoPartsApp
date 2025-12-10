@@ -5,6 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -14,13 +16,13 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.navigation.NavController
-import com.autoparts.presentation.navigation.Screen
 
+private const val LABEL_CANCELAR_CITA = "Cancelar Cita"
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MisCitasScreen(
-    navController: NavController,
+    onNavigateBack: () -> Unit,
+    onNavigateToLogin: () -> Unit,
     viewModel: MisCitasViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
@@ -36,14 +38,7 @@ fun MisCitasScreen(
     LaunchedEffect(Unit) {
         viewModel.uiEffect.collect { effect ->
             when (effect) {
-                is MisCitasUiEffect.NavigateToLogin -> {
-                    navController.navigate(
-                        Screen.Login.createRoute("Inicie sesión para ver sus citas")
-                    ) {
-                        popUpTo(Screen.MisCitas.route) { inclusive = true }
-                        launchSingleTop = true
-                    }
-                }
+                is MisCitasUiEffect.NavigateToLogin -> onNavigateToLogin()
                 is MisCitasUiEffect.ShowError -> {
                     snackbarHostState.showSnackbar(effect.message)
                 }
@@ -68,40 +63,46 @@ fun MisCitasScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("Mis Citas") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, "Volver")
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Volver")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { showFilterMenu = true }) {
-                        Icon(Icons.Default.FilterList, "Filtrar")
-                    }
-                    DropdownMenu(
-                        expanded = showFilterMenu,
-                        onDismissRequest = { }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text("Todas") },
-                            onClick = {
-                                viewModel.handleIntent(MisCitasIntent.FiltrarPorEstado(null))
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Confirmadas") },
-                            onClick = {
-                                viewModel.handleIntent(MisCitasIntent.FiltrarPorEstado(true))
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Pendientes") },
-                            onClick = {
-                                viewModel.handleIntent(MisCitasIntent.FiltrarPorEstado(false))
-                            }
-                        )
+                    Box {
+                        IconButton(onClick = { showFilterMenu = true }) {
+                            Icon(Icons.Default.FilterList, "Filtrar")
+                        }
+                        DropdownMenu(
+                            expanded = showFilterMenu,
+                            onDismissRequest = { showFilterMenu = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("Todas") },
+                                onClick = {
+                                    showFilterMenu = false
+                                    viewModel.handleIntent(MisCitasIntent.FiltrarPorEstado(null))
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Confirmadas") },
+                                onClick = {
+                                    showFilterMenu = false
+                                    viewModel.handleIntent(MisCitasIntent.FiltrarPorEstado(true))
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Pendientes") },
+                                onClick = {
+                                    showFilterMenu = false
+                                    viewModel.handleIntent(MisCitasIntent.FiltrarPorEstado(false))
+                                }
+                            )
+                        }
                     }
                 }
             )
@@ -137,12 +138,8 @@ fun MisCitasScreen(
                             color = MaterialTheme.colorScheme.onSurface,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center
                         )
-                        Button(onClick = {
-                            navController.navigate(Screen.Login.createRoute()) {
-                                popUpTo(Screen.Home.route)
-                            }
-                        }) {
-                            Icon(Icons.Default.Login, contentDescription = null)
+                        Button(onClick = onNavigateToLogin) {
+                            Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Iniciar Sesión")
                         }
@@ -318,25 +315,26 @@ fun CitaCard(
 
     if (showCancelDialog) {
         AlertDialog(
-            onDismissRequest = { },
-            title = { Text("Cancelar Cita") },
+            onDismissRequest = { showCancelDialog = false },
+            title = { Text(LABEL_CANCELAR_CITA) },
             text = {
                 Text("¿Estás seguro que deseas cancelar esta cita? Esta acción no se puede deshacer.")
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        showCancelDialog = false
                         onCancelar()
                     },
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Cancelar Cita")
+                    Text(LABEL_CANCELAR_CITA)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { }) {
+                TextButton(onClick = { showCancelDialog = false }) {
                     Text("Mantener")
                 }
             }
