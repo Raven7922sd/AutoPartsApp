@@ -14,7 +14,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -29,7 +28,8 @@ import java.util.Locale
 @Composable
 fun CrearCitaScreen(
     servicioId: Int,
-    navController: NavController,
+    onNavigateBack: () -> Unit,
+    onNavigateToMisCitas: () -> Unit,
     viewModel: CrearCitaViewModel = hiltViewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -42,17 +42,11 @@ fun CrearCitaScreen(
     LaunchedEffect(Unit) {
         viewModel.uiEffect.collect { effect ->
             when (effect) {
-                is CrearCitaUiEffect.NavigateBack -> {
-                    navController.popBackStack()
-                }
+                is CrearCitaUiEffect.NavigateBack -> onNavigateBack()
                 is CrearCitaUiEffect.ShowMessage -> {
                     snackbarHostState.showSnackbar(effect.message)
                 }
-                is CrearCitaUiEffect.NavigateToMisCitas -> {
-                    navController.navigate("mis_citas_screen") {
-                        popUpTo("servicio_detalle/${servicioId}") { inclusive = true }
-                    }
-                }
+                is CrearCitaUiEffect.NavigateToMisCitas -> onNavigateToMisCitas()
             }
         }
     }
@@ -60,7 +54,7 @@ fun CrearCitaScreen(
     CrearCitaScreenContent(
         uiState = uiState,
         onEvent = viewModel::onEvent,
-        onBackClick = { navController.popBackStack() },
+        onBackClick = onNavigateBack,
         snackbarHostState = snackbarHostState
     )
 }
@@ -74,6 +68,7 @@ fun CrearCitaScreenContent(
     snackbarHostState: SnackbarHostState
 ) {
     Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
                 title = { Text("Agendar Cita") },
@@ -86,210 +81,266 @@ fun CrearCitaScreenContent(
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
-        when {
-            uiState.isLoading && uiState.servicio == null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-            uiState.error != null && uiState.servicio == null -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        Text(
-                            text = uiState.error,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                        Button(onClick = onBackClick) {
-                            Text("Volver")
-                        }
-                    }
-                }
-            }
-            uiState.servicio != null -> {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .verticalScroll(rememberScrollState())
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(
-                                text = "Servicio Seleccionado",
-                                style = MaterialTheme.typography.labelLarge,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Text(
-                                text = uiState.servicio.nombre,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                            Row(
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    text = "Precio: RD$ ${String.format(Locale.US, "%.2f", uiState.servicio.precio)}",
-                                    style = MaterialTheme.typography.bodyLarge,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer
-                                )
-                            }
-                        }
-                    }
+        CrearCitaContent(
+            uiState = uiState,
+            onEvent = onEvent,
+            onBackClick = onBackClick,
+            padding = padding
+        )
+    }
 
-                    Text(
-                        text = "Datos de la Cita",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
+    CitaCreadaDialog(
+        visible = uiState.citaCreada,
+        codigoConfirmacion = uiState.codigoConfirmacion,
+        onDismiss = { onEvent(CrearCitaUiEvent.OnDismissDialog) }
+    )
+}
 
-                    OutlinedTextField(
-                        value = uiState.clienteNombre,
-                        onValueChange = { onEvent(CrearCitaUiEvent.OnNombreChanged(it)) },
-                        label = { Text("Nombre Completo") },
-                        leadingIcon = {
-                            Icon(Icons.Default.Person, "Nombre")
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        isError = uiState.nombreError != null,
-                        supportingText = {
-                            if (uiState.nombreError != null) {
-                                Text(
-                                    text = uiState.nombreError,
-                                    color = MaterialTheme.colorScheme.error
-                                )
-                            }
-                        },
-                        singleLine = true
-                    )
+@Composable
+private fun CrearCitaContent(
+    uiState: CrearCitaUiState,
+    onEvent: (CrearCitaUiEvent) -> Unit,
+    onBackClick: () -> Unit,
+    padding: PaddingValues
+) {
+    when {
+        uiState.isLoading && uiState.servicio == null -> LoadingState(padding)
+        uiState.error != null && uiState.servicio == null -> ErrorState(uiState.error, onBackClick, padding)
+        uiState.servicio != null -> CitaFormContent(uiState, onEvent, padding)
+    }
+}
 
-                    DatePickerField(
-                        selectedDate = uiState.fechaCita,
-                        onDateSelected = { onEvent(CrearCitaUiEvent.OnFechaChanged(it)) },
-                        isError = uiState.fechaError != null,
-                        errorMessage = uiState.fechaError
-                    )
+@Composable
+private fun LoadingState(padding: PaddingValues) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding),
+        contentAlignment = Alignment.Center
+    ) {
+        CircularProgressIndicator()
+    }
+}
 
-                    TimePickerField(
-                        selectedTime = uiState.horaCita,
-                        onTimeSelected = { onEvent(CrearCitaUiEvent.OnHoraChanged(it)) },
-                        isError = uiState.horaError != null,
-                        errorMessage = uiState.horaError
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    Button(
-                        onClick = { onEvent(CrearCitaUiEvent.OnSubmitCita) },
-                        modifier = Modifier.fillMaxWidth(),
-                        enabled = !uiState.isLoading
-                    ) {
-                        if (uiState.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(20.dp),
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Agendando...")
-                        } else {
-                            Icon(Icons.Default.CheckCircle, "Confirmar")
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Confirmar Cita")
-                        }
-                    }
-                }
+@Composable
+private fun ErrorState(error: String, onBackClick: () -> Unit, padding: PaddingValues) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = error,
+                color = MaterialTheme.colorScheme.error
+            )
+            Button(onClick = onBackClick) {
+                Text("Volver")
             }
         }
     }
+}
 
-    if (uiState.citaCreada) {
-        AlertDialog(
-            onDismissRequest = { onEvent(CrearCitaUiEvent.OnDismissDialog) },
-            icon = {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Éxito",
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(48.dp)
-                )
-            },
-            title = {
+@Composable
+private fun CitaFormContent(
+    uiState: CrearCitaUiState,
+    onEvent: (CrearCitaUiEvent) -> Unit,
+    padding: PaddingValues
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        ServicioInfoCard(uiState.servicio!!)
+
+        Text(
+            text = "Datos de la Cita",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        NombreField(uiState, onEvent)
+        DatePickerField(
+            selectedDate = uiState.fechaCita,
+            onDateSelected = { onEvent(CrearCitaUiEvent.OnFechaChanged(it)) },
+            isError = uiState.fechaError != null,
+            errorMessage = uiState.fechaError
+        )
+        TimePickerField(
+            selectedTime = uiState.horaCita,
+            onTimeSelected = { onEvent(CrearCitaUiEvent.OnHoraChanged(it)) },
+            isError = uiState.horaError != null,
+            errorMessage = uiState.horaError
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+        SubmitButton(uiState, onEvent)
+    }
+}
+
+@Composable
+private fun ServicioInfoCard(servicio: com.autoparts.domain.model.Servicio) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "Servicio Seleccionado",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+                text = servicio.nombre,
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Row(
+                horizontalArrangement = Arrangement.SpaceBetween,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
-                    text = "¡Cita Agendada!",
-                    textAlign = TextAlign.Center
+                    text = "Precio: RD$ ${String.format(Locale.US, "%.2f", servicio.precio)}",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-            },
-            text = {
+            }
+        }
+    }
+}
+
+@Composable
+private fun NombreField(uiState: CrearCitaUiState, onEvent: (CrearCitaUiEvent) -> Unit) {
+    OutlinedTextField(
+        value = uiState.clienteNombre,
+        onValueChange = { onEvent(CrearCitaUiEvent.OnNombreChanged(it)) },
+        label = { Text("Nombre Completo") },
+        leadingIcon = {
+            Icon(Icons.Default.Person, "Nombre")
+        },
+        modifier = Modifier.fillMaxWidth(),
+        isError = uiState.nombreError != null,
+        supportingText = {
+            uiState.nombreError?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        },
+        singleLine = true
+    )
+}
+
+@Composable
+private fun SubmitButton(uiState: CrearCitaUiState, onEvent: (CrearCitaUiEvent) -> Unit) {
+    Button(
+        onClick = { onEvent(CrearCitaUiEvent.OnSubmitCita) },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = !uiState.isLoading
+    ) {
+        if (uiState.isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = MaterialTheme.colorScheme.onPrimary
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Agendando...")
+        } else {
+            Icon(Icons.Default.CheckCircle, "Confirmar")
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Confirmar Cita")
+        }
+    }
+}
+
+@Composable
+private fun CitaCreadaDialog(
+    visible: Boolean,
+    codigoConfirmacion: String?,
+    onDismiss: () -> Unit
+) {
+    if (!visible) return
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "Éxito",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp)
+            )
+        },
+        title = {
+            Text(
+                text = "¡Cita Agendada!",
+                textAlign = TextAlign.Center
+            )
+        },
+        text = {
+            CitaCreadaDialogContent(codigoConfirmacion)
+        },
+        confirmButton = {
+            Button(onClick = onDismiss) {
+                Text("Aceptar")
+            }
+        }
+    )
+}
+
+@Composable
+private fun CitaCreadaDialogContent(codigoConfirmacion: String?) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            text = "Tu cita ha sido agendada exitosamente.",
+            textAlign = TextAlign.Center
+        )
+        codigoConfirmacion?.let { codigo ->
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                )
+            ) {
                 Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier.padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "Tu cita ha sido agendada exitosamente.",
-                        textAlign = TextAlign.Center
+                        text = "Código de Confirmación",
+                        style = MaterialTheme.typography.labelMedium
                     )
-                    if (uiState.codigoConfirmacion != null) {
-                        Card(
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(16.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    text = "Código de Confirmación",
-                                    style = MaterialTheme.typography.labelMedium
-                                )
-                                Text(
-                                    text = uiState.codigoConfirmacion,
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
-                        }
-                    }
                     Text(
-                        text = "Guarda tu código de confirmación para futuras referencias.",
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = codigo,
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = { onEvent(CrearCitaUiEvent.OnDismissDialog) }
-                ) {
-                    Text("Aceptar")
                 }
             }
+        }
+        Text(
+            text = "Guarda tu código de confirmación para futuras referencias.",
+            style = MaterialTheme.typography.bodySmall,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }
@@ -371,13 +422,14 @@ fun DatePickerField(
                             val formattedDate = dateFormat.format(calendar.time)
                             onDateSelected(formattedDate)
                         }
+                        showDatePicker = false
                     }
                 ) {
                     Text("Aceptar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { }) {
+                TextButton(onClick = { showDatePicker = false }) {
                     Text("Cancelar")
                 }
             }
@@ -432,7 +484,7 @@ fun TimePickerField(
 
     if (showTimePicker) {
         AlertDialog(
-            onDismissRequest = { },
+            onDismissRequest = { showTimePicker = false },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -440,13 +492,14 @@ fun TimePickerField(
                         val minute = timePickerState.minute.toString().padStart(2, '0')
                         val formattedTime = "$hour:$minute"
                         onTimeSelected(formattedTime)
+                        showTimePicker = false
                     }
                 ) {
                     Text("Aceptar")
                 }
             },
             dismissButton = {
-                TextButton(onClick = { }) {
+                TextButton(onClick = { showTimePicker = false }) {
                     Text("Cancelar")
                 }
             },
