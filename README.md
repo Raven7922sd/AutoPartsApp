@@ -12,6 +12,5 @@ La aplicación está diseñada para manejar un catálogo diverso que incluye sop
 
 El enfoque está en proporcionar una experiencia de usuario simple, con navegación intuitiva, un catálogo completo y soporte robusto para las transacciones y compras en línea.
 
-## ⚙️ Stack Tecnológico
 
 **Johan Estiven Reinoso Camacho** #2023-0194 
