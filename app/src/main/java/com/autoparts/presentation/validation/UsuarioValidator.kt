@@ -1,103 +1,112 @@
 package com.autoparts.presentation.validation
 
-import com.autoparts.dominio.usecase.GetUsuariosUseCase
-import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
-class UsuarioValidator @Inject constructor(
-    val usuarios: GetUsuariosUseCase
-) {
-    suspend fun validateNombre(nombre: String, usuarioIdActual: Int? = null): ValidationResult {
-        if (nombre.length < 5) {
+class UsuarioValidator @Inject constructor() {
+
+    fun validateEmail(email: String): ValidationResult {
+        if (email.isBlank()) {
             return ValidationResult(
                 isValid = false,
-                errorMessage = "El nombre necesita tener al menos 5 carácteres"
+                errorMessage = "El email es requerido"
             )
-        } else if (nombre.length > 70) {
-            return ValidationResult(
-                isValid = false,
-                errorMessage = "El nombre no puede tener más de 50 caracteres"
-            )
-        } else if (!validateNombreUnico(nombre, usuarioIdActual).isValid) {
-            return ValidationResult(
-                isValid = false,
-                errorMessage = "El nombre de usuario ya existe"
-            )
-        } else {
-            return ValidationResult(isValid = true, errorMessage = "")
         }
+
+        val emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$".toRegex()
+        if (!email.matches(emailRegex)) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "El email no es válido"
+            )
+        }
+
+        return ValidationResult(isValid = true, errorMessage = "")
     }
 
-    fun validatePassword(contrasena: String): ValidationResult {
-        if (contrasena.length < 8) {
+    fun validatePassword(password: String): ValidationResult {
+        if (password.length < 8) {
             return ValidationResult(
                 isValid = false,
                 errorMessage = "La contraseña necesita tener al menos 8 caracteres"
             )
-        } else if (!contrasena.contains(Regex("[A-Z]")) || !contrasena.contains(Regex("[a-z]")) || !contrasena.contains(
-                Regex("[0-9]")
-            ) || !contrasena.contains(Regex("[^A-Za-z0-9]"))
-        ) {
+        }
+
+        if (!password.contains(Regex("[A-Z]"))) {
             return ValidationResult(
                 isValid = false,
-                errorMessage = "La contraseña debe tener al menos una letra mayúscula, una letra minúscula, un número y un carácter especial"
+                errorMessage = "La contraseña debe contener al menos una letra mayúscula"
             )
-        } else if (contrasena.length > 50) {
+        }
+
+        if (!password.contains(Regex("[a-z]"))) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "La contraseña debe contener al menos una letra minúscula"
+            )
+        }
+
+        if (!password.contains(Regex("[0-9]"))) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "La contraseña debe contener al menos un número"
+            )
+        }
+
+        if (!password.contains(Regex("[^A-Za-z0-9]"))) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "La contraseña debe contener al menos un carácter especial"
+            )
+        }
+
+        if (password.length > 50) {
             return ValidationResult(
                 isValid = false,
                 errorMessage = "La contraseña no puede tener más de 50 caracteres"
             )
-        } else {
+        }
+
+        return ValidationResult(isValid = true, errorMessage = "")
+    }
+
+    fun validatePhoneNumber(phoneNumber: String?): ValidationResult {
+        if (phoneNumber.isNullOrBlank()) {
             return ValidationResult(isValid = true, errorMessage = "")
         }
-    }
 
-    suspend fun validateNombreUnico(nombre: String, usuarioIdActual: Int? = null): ValidationResult {
-        return try {
-            val lista = usuarios().first()
-            val existe = lista.any {
-                it.userName.equals(nombre, ignoreCase = true) && it.usuarioId != usuarioIdActual
-            }
-
-            if (existe) {
-                ValidationResult(
-                    isValid = false,
-                    errorMessage = "El nombre de usuario ya existe"
-                )
-            } else {
-                ValidationResult(isValid = true, errorMessage = "")
-            }
-        } catch (e: Exception) {
-            ValidationResult(
+        val phoneRegex = "^[0-9]{10,15}$".toRegex()
+        if (!phoneNumber.matches(phoneRegex)) {
+            return ValidationResult(
                 isValid = false,
-                errorMessage = "Error al validar el nombre: ${e.message}"
+                errorMessage = "El teléfono debe contener entre 10 y 15 dígitos"
             )
         }
+
+        return ValidationResult(isValid = true, errorMessage = "")
     }
 
-    suspend fun validateCredenciales(userName: String, password: String): ValidationResult {
-        return try {
-            val lista = usuarios().first()
-            val user = lista.firstOrNull {
-                it.userName.equals(userName, ignoreCase = true) && it.password == password
-            }
-            if (user != null) {
-                ValidationResult(isValid = true, usuarioId = user.usuarioId, errorMessage = "")
-            } else {
-                ValidationResult(
-                    isValid = false,
-                    usuarioId = null,
-                    errorMessage = "Usuario o contraseña incorrectos"
-                )
-            }
-        } catch (e: Exception) {
-            ValidationResult(
+    fun validateUserName(userName: String): ValidationResult {
+        if (userName.isBlank()) {
+            return ValidationResult(
                 isValid = false,
-                errorMessage = "Error al validar credenciales: ${e.message}"
+                errorMessage = "El nombre es requerido"
             )
         }
+
+        if (userName.length < 2) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "El nombre debe tener al menos 2 caracteres"
+            )
+        }
+
+        if (userName.length > 50) {
+            return ValidationResult(
+                isValid = false,
+                errorMessage = "El nombre no puede tener más de 50 caracteres"
+            )
+        }
+
+        return ValidationResult(isValid = true, errorMessage = "")
     }
-
-
 }
-
